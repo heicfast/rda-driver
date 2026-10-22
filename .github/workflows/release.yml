@@ -43,12 +43,18 @@ jobs:
       - name: Stage release bundle
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          New-Item -ItemType Directory -Force -Path dist, dist\scripts | Out-Null
           Copy-Item bin\x64\Release\rda.sys dist\
           Copy-Item bin\x64\Release\rdacli.exe dist\
           Copy-Item src\driver\rda.inf dist\
-          Copy-Item scripts\install.ps1, scripts\uninstall.ps1, scripts\run-integration.ps1 dist\scripts\
-          Copy-Item LICENSE, README.md, docs\signing.md, docs\testing.md, docs\win7-compat.md dist\
+          Copy-Item scripts\install.ps1 dist\scripts\
+          Copy-Item scripts\uninstall.ps1 dist\scripts\
+          Copy-Item scripts\run-integration.ps1 dist\scripts\
+          Copy-Item LICENSE dist\
+          Copy-Item README.md dist\
+          Copy-Item docs\signing.md dist\
+          Copy-Item docs\testing.md dist\
+          Copy-Item docs\win7-compat.md dist\
 
       - name: Compute checksums (SHA-256)
         shell: pwsh
