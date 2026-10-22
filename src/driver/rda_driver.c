@@ -27,8 +27,6 @@ RDA_PARAMETERS g_RdaParameters;
 ULONG g_RdaDebugLevel = RDA_LEVEL_ERROR;
 volatile LONG64 g_RdaGlobalHandle = 0;
 
-DRIVER_UNLOAD RdaDriverUnload;
-
 static DRIVER_DISPATCH RdaDispatchDefault;
 
 static VOID RdaDriverUnload(_In_ PDRIVER_OBJECT DriverObject) {

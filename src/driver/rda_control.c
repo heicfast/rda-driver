@@ -112,7 +112,7 @@ NTSTATUS RdaCreateControlDevice(_In_ PDRIVER_OBJECT DriverObject,
     {
         UNICODE_STRING prefix;
         RtlInitUnicodeString(&g_RdaDeviceName, deviceBuffer);
-        g_RdaDeviceName.MaximumLength = nameBufferBytes;
+        g_RdaDeviceName.MaximumLength = (USHORT)nameBufferBytes;
         RtlInitUnicodeString(&prefix, RDA_DEV_PREFIX);
         status = RtlAppendUnicodeStringToString(&g_RdaDeviceName, &prefix);
         if (NT_SUCCESS(status)) {
@@ -124,7 +124,7 @@ NTSTATUS RdaCreateControlDevice(_In_ PDRIVER_OBJECT DriverObject,
         }
 
         RtlInitUnicodeString(&g_RdaDosName, dosBuffer);
-        g_RdaDosName.MaximumLength = nameBufferBytes;
+        g_RdaDosName.MaximumLength = (USHORT)nameBufferBytes;
         RtlInitUnicodeString(&prefix, RDA_DOS_PREFIX);
         status = RtlAppendUnicodeStringToString(&g_RdaDosName, &prefix);
         if (NT_SUCCESS(status)) {

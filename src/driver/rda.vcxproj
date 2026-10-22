@@ -76,6 +76,10 @@
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <ControlFlowGuard>false</ControlFlowGuard>
       <AdditionalIncludeDirectories>$(ProjectDir)inc;$(SolutionDir)src\shared\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- C4391: wdm.h's interlocked-intrinsic declarations mismatch MSVC's
+           intrinsic return typing. Unfixable from user code; suppressed
+           project-wide. Our own sources carry zero suppressions. -->
+      <DisableSpecificWarnings>4391</DisableSpecificWarnings>
       <AdditionalOptions>/external:W0 %(AdditionalOptions)</AdditionalOptions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
