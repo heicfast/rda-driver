@@ -240,7 +240,7 @@ typedef struct _RDA_GETNEXTBLOCK {
     UINT32 Progress;   /* +0x18 out */
     UINT8 MapProgress; /* +0x1C out */
     UINT8 MapOk;       /* +0x1D out */
-} RDA_GETNEXTBLOCK;
+} RDA_GETNEXTBLOCK, *PRDA_GETNEXTBLOCK;
 #pragma pack(pop)
 C_ASSERT(sizeof(RDA_GETNEXTBLOCK) == 0x1EUL);
 C_ASSERT(offsetof(RDA_GETNEXTBLOCK, CursorSec) == 0x08);
@@ -267,7 +267,7 @@ typedef struct _RDA_STARTBACKUP_IN {
     UINT32 StartSec;   /* +0x1C */
     UINT32 BlockCount; /* +0x20 */
     UINT32 Spb;        /* +0x24 */
-} RDA_STARTBACKUP_IN;
+} RDA_STARTBACKUP_IN, *PRDA_STARTBACKUP_IN;
 #pragma pack(pop)
 C_ASSERT(sizeof(RDA_STARTBACKUP_IN) == 0x28UL);
 C_ASSERT(offsetof(RDA_STARTBACKUP_IN, PumpBuffer) == 0x08);
@@ -287,7 +287,7 @@ typedef struct _RDA_FILEIO_IN {
     PVOID Buffer;      /* +0x08 */
     UINT64 ByteOffset; /* +0x10 */
     UINT32 Length;     /* +0x18 */
-} RDA_FILEIO_IN;
+} RDA_FILEIO_IN, *PRDA_FILEIO_IN;
 #pragma pack(pop)
 C_ASSERT(sizeof(RDA_FILEIO_IN) == 0x1CUL);
 C_ASSERT(offsetof(RDA_FILEIO_IN, Buffer) == 0x08);

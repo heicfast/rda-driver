@@ -130,6 +130,11 @@ _IRQL_requires_max_(PASSIVE_LEVEL) PVOID RdaAlloc(_In_ SIZE_T Bytes);
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID RdaFree(_In_opt_ PVOID Memory);
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
     RdaFormatDeviceName(_Out_ PUNICODE_STRING Name, _In_z_ PCWSTR Format, _In_ ULONG Number);
+/* Two-number form (DR retry: the reference passes the disk number as both
+ * varargs - instruction-level verified). */
+_IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
+    RdaFormatDeviceName2(_Out_ PUNICODE_STRING Name, _In_z_ PCWSTR Format, _In_ ULONG Number,
+                         _In_ ULONG Number2);
 
 /* ---------------------------------------------------------------------------
  * rda_registry.c

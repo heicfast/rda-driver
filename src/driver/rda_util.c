@@ -54,11 +54,10 @@ _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
     return RdaFormatDeviceName2(Name, Format, Number, Number);
 }
 
-/* Two-number form. Used by the DR fallback: the reference formatted
- * "\Device\Harddisk%u\DR%u" with a SINGLE vararg (the second %u consumed
- * uninitialized stack - decompile-verified FUN_000110b0, G4). The retry
- * could therefore essentially never resolve. RDA formats the disk number
- * deterministically into both slots (documented divergence from garbage). */
+/* Two-number form. Used by the DR fallback: the reference formats
+ * "\Device\Harddisk%u\DR%u" passing the disk number as BOTH varargs
+ * (verified at instruction level in the raw binary - vararg1 in r9d,
+ * vararg2 in the [rsp+0x20] stack slot; Ghidra's 4-param view hides it). */
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
     RdaFormatDeviceName2(_Out_ PUNICODE_STRING Name, _In_z_ PCWSTR Format, _In_ ULONG Number,
                          _In_ ULONG Number2) {

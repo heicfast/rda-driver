@@ -27,12 +27,15 @@ S1..S12 (defects in our own code), each with the decompile evidence.
   - Disk branch: parses the FIRST number of the remainder (RtlUnicodeStringToInteger
     over the whole remainder; stops at non-digit) — **the part number is NEVER parsed
     or used** (confirms our vestigial treatment). `disk > 199` → INVALID_PARAMETER.
-  - **G4 (reference bug, documented)**: the DR fallback formats
-    `"\Device\Harddisk%u\DR%u"` with **a single vararg** — the second %u prints
-    uninitialized stack garbage (Ghidra shows one argument in the va_list). The retry
-    therefore essentially never resolves. Our formatter accidentally reproduced the
-    broken shape (a literal "DR%u" name). FIXED: format DR{disk} with the disk
-    number twice; documented divergence (deterministic instead of garbage).
+  - **G4 (CORRECTED by raw disassembly)**: the DR fallback formats
+    `"\Device\Harddisk%u\DR%u"` with the **disk number passed twice**
+    (verified at instruction level: `mov r9d, edi` (vararg 1) AND `mov
+    dword ptr [rsp+0x20], edi` (vararg 2) before the call at RVA 0x15e6).
+    Ghidra's 4-parameter view of the vararg helper hid the stack-passed
+    second argument - the earlier "uninitialized garbage" interpretation
+    was wrong. Our v0.1.0 formatter accidentally produced a literal "DR%u"
+    name; FIXED to format DR{disk} with the disk number twice, which is
+    byte-exact reference behavior.
   - **G5 (exactness)**: the walk's `\Driver\Disk` comparison is against
     **DriverObject->DriverExtension->ServiceKeyName** (`*(drv+0x30)+0x18`), case
     insensitive, vs L"Disk" — NOT DriverName. Since ServiceKeyName is

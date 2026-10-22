@@ -181,9 +181,9 @@ NTSTATUS RdaResolveDisk(_In_ ULONG DiskNumber, _In_ ULONG PartNumber,
     status =
         RdaOpenNamedDevice(L"\\Device\\Harddisk%u\\Partition0", DiskNumber, (ULONG)-1, Context);
     if (!NT_SUCCESS(status)) {
-        /* Reference retry: \Device\Harddisk{d}\DR{d}. The reference printed
-         * the DR number from an uninitialized vararg (G4); we format the
-         * disk number deterministically. */
+        /* Reference retry: \Device\Harddisk{d}\DR{d} - the disk number is
+         * passed as BOTH varargs (verified at instruction level, RVA 0x15cd:
+         * vararg1 via r9d + vararg2 via the [rsp+0x20] stack slot). */
         RDA_TRACE(RDA_LEVEL_WARN, "[GetDiskDeviceObejct] %ws open error 0x%x,retry",
                   L"\\Device\\Harddisk\\Partition0", status);
         status = RdaOpenNamedDevice(L"\\Device\\Harddisk%u\\DR%u", DiskNumber, DiskNumber, Context);
