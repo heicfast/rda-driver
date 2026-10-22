@@ -37,19 +37,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Restore WDK (NuGet)
-        run: |
-          nuget install Microsoft.Windows.WDK.x64 -Version $env:WDK_VERSION -OutputDirectory packages -NonInteractive
-          $pkg = Get-ChildItem packages/Microsoft.Windows.WDK.x64*/build -Directory | Select-Object -First 1
-          "WDKPACK=$($pkg.FullName)" | Out-File -Append $env:GITHUB_ENV -Encoding utf8
+      - uses: nuget/setup-nuget@v2
+
+      - name: Restore WDK/SDK packages (pinned, same as ci)
+        run: nuget restore .\packages.config -PackagesDirectory .\packages\
+
+      - uses: microsoft/setup-msbuild@v2
 
       - name: Build (Release)
         run: |
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-          Import-Module (Join-Path $vs "Common7\Tools\Microsoft.VisualStudio.DevShell.dll")
-          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64"
           msbuild .\rda.sln -m -v:minimal -nologo -p:Configuration=Release -p:Platform=x64
           Get-ChildItem bin\x64\Release | Format-Table Name,Length
+
+      - name: Stamp Win7 loader contract
+        run: |
+          python tools\stamp_osversion.py bin\x64\Release\rda.sys
+          python tools\verify_pe.py bin\x64\Release\rda.sys
 
       - name: Fetch reference drivers (run-time only, never committed)
         run: |
@@ -218,14 +221,16 @@ jobs:
 
       - name: Stop and clean drivers
         if: always()
+        continue-on-error: true
         run: |
-          sc.exe stop rdatest 2>$null
-          sc.exe delete rdatest 2>$null
-          sc.exe stop eprdtdrv 2>$null
-          sc.exe delete eprdtdrv 2>$null
-          Dismount-VHD -Path $env:VHD_PATH 2>$null
-          Remove-Item $env:VHD_PATH -Force 2>$null
-          Import-Certificate -ErrorAction SilentlyContinue | Out-Null
+          sc.exe stop rdatest
+          sc.exe delete rdatest
+          sc.exe stop eprdtdrv
+          sc.exe delete eprdtdrv
+          Dismount-VHD -Path $env:VHD_PATH
+          Remove-Item $env:VHD_PATH -Force
+          Remove-Item "C:\Windows\System32\drivers\rdatest.sys","C:\Windows\System32\drivers\eprdtdrv.sys" -Force -ErrorAction SilentlyContinue
+          Get-ChildItem Cert:\LocalMachine\My\RDA-BENCH-TEST -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
 
       - name: Upload results
         if: always()
