@@ -231,10 +231,12 @@ in/out (overlaid buffer):
 +0x01C u64 extentParam2      → block-map builder
 +0x024 u64 bitmapSize        (≠0 required)
 +0x02C u32 bitmapCount       (≠0 required)
-+0x030 u32 spbIn             (0 → driver picks: tSecs<0x20 → 1 else 0x10; tail=tSecs&0xF)
++0x030 u32 spb IN/OUT        (IN: 0 → driver picks: tSecs<0x20 → 1 else 0x10, tail=tSecs&0xF;
+                               OUT: overwritten with the effective spb — CORRECTED: the
+                               reference ctor writes the effective spb back at +0x30;
+                               +0x838 is unused padding in the reference format)
 +0x034 0x800 bytes block bitmap (bit per copy block; copied to session; NUL pad at 0x7FE)
 +0x834 u64 OUT: session handle (ptr) [RDA: opaque 64-bit handle, not raw pointer]
-+0x838 u32 OUT: effective spb
 +0x83C u32 OUT: sector size (device +0x98)
 ```
 Overlapping-range guard [VERIFIED, NEW]: OpenSession walks the driver's device list under
