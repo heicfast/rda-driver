@@ -99,8 +99,8 @@ ALLOWLIST_ADDITIONS = {
     # REJECTED: those two are FORCEINLINE before NTDDI_WIN10_NI and kernel
     # EXPORTS only from Win11 22H2 - importing them breaks loading on older
     # kernels with error 127, which the runner caught live.)
-    "InterlockedPopEntrySList": "xfer-context pool pop (Win2000-era)",
-    "InterlockedPushEntrySList": "xfer-context pool push (Win2000-era)",
+    "ExpInterlockedPopEntrySList": "xfer-context pool pop (wdm.h inline wraps this Win2000-era export)",
+    "ExpInterlockedPushEntrySList": "xfer-context pool push (same Win2000-era export family)",
 }
 
 EXPECTED_MACHINE = 0x8664
