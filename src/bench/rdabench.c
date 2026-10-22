@@ -70,6 +70,14 @@ static HANDLE OpenTarget(ULONG disk, ULONG part, DWORD *lastError) {
     return h;
 }
 
+/* Legacy Information contract (reference-exact, verified in both drivers):
+ * on success the driver reports Information = Length * 512, so ReadFile's
+ * lpNumberOfBytesRead comes back SCALED. Reference clients divide by 512 to
+ * recover the true byte count; so do we. */
+static DWORD UnscaleInformation(DWORD scaled) {
+    return scaled / RDA_LEGACY_INFORMATION_SCALE;
+}
+
 static double NowSec(void) {
     LARGE_INTEGER freq, counter;
 
@@ -152,7 +160,16 @@ static int BenchSeq(void) {
 
     t0 = NowSec();
     for (offset.QuadPart = 0; (ULONG64)offset.QuadPart < spanBytes; offset.QuadPart += blockBytes) {
-        if (!ReadFile(h, buffer, blockBytes, &read, NULL) || read != blockBytes) {
+        DWORD scaled = 0;
+
+        if (!SetFilePointerEx(h, offset, NULL, FILE_BEGIN)) {
+            _aligned_free(buffer);
+            CloseHandle(h);
+            EmitString("error", "seek failed");
+            return 1;
+        }
+        if (!ReadFile(h, buffer, blockBytes, &scaled, NULL) ||
+            UnscaleInformation(scaled) != blockBytes) {
             if (total == 0) {
                 _aligned_free(buffer);
                 CloseHandle(h);
@@ -161,6 +178,7 @@ static int BenchSeq(void) {
             }
             break;
         }
+        read = UnscaleInformation(scaled);
         total += read;
     }
     t1 = NowSec();
@@ -204,14 +222,19 @@ static int BenchRand(void) {
 
     t0 = NowSec();
     for (i = 0; i < g_Config.Iterations; i++) {
+        DWORD scaled = 0;
+
         rng = rng * 6364136223846793005ULL + 1442695040888963407ULL;
         offset.QuadPart = (ULONG64)((rng >> 11) % blockCount) * blockBytes;
-        if (!ReadFile(h, buffer, blockBytes, &read, NULL) || read != blockBytes) {
+        if (!SetFilePointerEx(h, offset, NULL, FILE_BEGIN) ||
+            !ReadFile(h, buffer, blockBytes, &scaled, NULL) ||
+            UnscaleInformation(scaled) != blockBytes) {
             EmitString("error", "random read failed");
             _aligned_free(buffer);
             CloseHandle(h);
             return 1;
         }
+        read = UnscaleInformation(scaled);
     }
     t1 = NowSec();
     _aligned_free(buffer);
@@ -260,6 +283,8 @@ static int BenchInfo(void) {
                                  sizeof(buffer), &returned, NULL);
             EmitResult("getprocname", "bool", ok ? 1.0 : 0.0);
             CloseHandle(global);
+        } else {
+            EmitResult("getprocname", "bool", 0.0);
         }
     }
 
@@ -270,8 +295,11 @@ static int BenchInfo(void) {
         DWORD got = 0;
 
         offset.QuadPart = 0;
-        if (ReadFile(h, small, sizeof(small), &got, NULL) && got == sizeof(small)) {
-            EmitResult("read_information_scale", "sectors", 1.0);
+        if (SetFilePointerEx(h, offset, NULL, FILE_BEGIN) &&
+            ReadFile(h, small, sizeof(small), &got, NULL) &&
+            got == sizeof(small) * RDA_LEGACY_INFORMATION_SCALE) {
+            /* got == 512 * 512 proves the reference Information scaling. */
+            EmitResult("read_information_scale", "sectors", (double)RDA_LEGACY_INFORMATION_SCALE);
         } else {
             EmitResult("read_information_scale", "sectors", 0.0);
         }
@@ -323,10 +351,15 @@ static int BenchVerify(void) {
     }
 
     for (ULONG64 i = 0; i < blockCount; i++) {
+        DWORD scaled = 0;
+
         offset.QuadPart = (LONGLONG)(i * blockBytes);
-        if (!ReadFile(h, buffer, blockBytes, &read, NULL) || read != blockBytes) {
+        if (!SetFilePointerEx(h, offset, NULL, FILE_BEGIN) ||
+            !ReadFile(h, buffer, blockBytes, &scaled, NULL) ||
+            UnscaleInformation(scaled) != blockBytes) {
             break;
         }
+        read = UnscaleInformation(scaled);
         if (BCryptCreateHash(alg, &hash, NULL, 0, NULL, 0, 0) != 0) {
             break;
         }
