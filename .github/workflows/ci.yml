@@ -148,7 +148,12 @@ jobs:
   # -------------------------------------------------------------- codeql ----
   codeql:
     name: codeql
-    runs-on: windows-latest
+    # windows-2022: the pinned WDK 26100 package ships the VS2022-era
+    # build-task assembly (Microsoft.DriverKit.Build.Tasks.17.0.dll);
+    # windows-latest (VS2026/MSBuild 18) requests .18.0 which the package
+    # does not contain (MSB4062). Keep the analysis toolchain identical to
+    # the shipped build.
+    runs-on: windows-2022
     permissions:
       security-events: write
       contents: read
