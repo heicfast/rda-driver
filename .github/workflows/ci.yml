@@ -1,0 +1,155 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------ lint --
+  lint:
+    name: lint (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: clang-format check
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang-format > /dev/null
+          find src -name '*.c' -o -name '*.h' | tee /tmp/files.txt
+          clang-format --version
+          xargs -a /tmp/files.txt clang-format --dry-run --Werror
+
+      - name: markdown sanity (tab-free, trailing newlines)
+        run: |
+          set -e
+          bad=0
+          for f in $(find . -name '*.md' -not -path './.git/*'); do
+            [ -f "$f" ] || continue
+            tail -c1 "$f" | read -r _ || { echo "$f: missing trailing newline"; bad=1; }
+          done
+          exit $bad
+
+      - name: unit tests (portable contract layer)
+        run: |
+          sudo apt-get install -y -qq gcc > /dev/null
+          scripts/run-unit-tests.sh
+
+  # ------------------------------------------------------------------ unit --
+  unit:
+    name: unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Locate MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build + run portable unit tests (MSVC /W4 /WX)
+        shell: pwsh
+        run: |
+          cl /nologo /W4 /WX /std:c11 /external:W0 `
+             /I src\shared\inc `
+             tests\unit\test_compat.c `
+             /Fe:bin\test_compat.exe
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          .\bin\test_compat.exe
+
+  # ----------------------------------------------------------------- build --
+  build:
+    name: build ${{ matrix.configuration }} (${{ matrix.wdk }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Primary shipped build: conservative VS2022 v143 + WDK 26100 NuGet.
+        # A modern-track (VS2026 + WDK 28000) compile check is added once the
+        # windows-2025-vs2026 runner label is publicly available; the artifact
+        # always ships from the conservative toolchain.
+        runner: [windows-2022]
+        wdk: [26100.6584]
+        tag: [wdk26100]
+        configuration: [Debug, Release]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup NuGet
+        uses: nuget/setup-nuget@v2
+
+      - name: Restore WDK/SDK packages (pinned)
+        run: nuget restore .\packages.config -PackagesDirectory .\packages\
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build solution
+        shell: pwsh
+        run: |
+          msbuild .\rda.sln `
+            -m -v:minimal -nologo `
+            -p:Configuration=${{ matrix.configuration }} `
+            -p:Platform=x64
+
+      - name: Win7 import/PE gate (verify_pe.py)
+        shell: pwsh
+        run: |
+          $sys = "bin\x64\${{ matrix.configuration }}\rda.sys"
+          if (-not (Test-Path $sys)) { Write-Error "missing $sys"; exit 1 }
+          python tools\verify_pe.py $sys
+
+      - name: Verify unsigned artifact (no accidental test-signing)
+        shell: pwsh
+        run: |
+          $sys = "bin\x64\${{ matrix.configuration }}\rda.sys"
+          $bytes = [IO.File]::ReadAllBytes($sys)
+          $lfanew = [BitConverter]::ToUInt32($bytes, 0x3C)
+          $secDirRva = [BitConverter]::ToUInt32($bytes, $lfanew + 0x18 + 112 + 32)
+          if ($secDirRva -ne 0) {
+            Write-Error "binary carries a signature (SignMode must stay Off)"
+            exit 1
+          }
+          Write-Host "artifact is unsigned as intended"
+
+      - name: Upload driver + client artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rda-${{ matrix.tag }}-${{ matrix.configuration }}
+          path: |
+            bin/x64/${{ matrix.configuration }}/rda.sys
+            bin/x64/${{ matrix.configuration }}/rdacli.exe
+            src/driver/rda.inf
+          if-no-files-found: error
+
+  # -------------------------------------------------------------- codeql ----
+  codeql:
+    name: codeql
+    runs-on: windows-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nuget/setup-nuget@v2
+      - run: nuget restore .\packages.config -PackagesDirectory .\packages\
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: c
+      - uses: microsoft/setup-msbuild@v2
+      - run: msbuild .\rda.sln -m -v:minimal -nologo -p:Configuration=Release -p:Platform=x64
+      - uses: github/codeql-action/analyze@v3

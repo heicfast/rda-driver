@@ -1,0 +1,11 @@
+<Project>
+  <!-- WDK/SDK NuGet integration: mirror of the microsoft/Windows-driver-samples
+       pattern. The packages.config restores into .\packages\; these imports
+       redirect WindowsSdkDir/WDKContentRoot to the pinned package so the build
+       is content-consistent on any machine (the VS component provides the
+       toolset plumbing only). Version bumps edit packages.config + this file
+       together. -->
+  <Import Project="packages\Microsoft.Windows.WDK.x64.10.0.26100.6584\build\native\Microsoft.Windows.WDK.x64.props" Condition="Exists('packages\Microsoft.Windows.WDK.x64.10.0.26100.6584\build\native\Microsoft.Windows.WDK.x64.props') and '$(Platform)' == 'x64'"/>
+  <Import Project="packages\Microsoft.Windows.SDK.CPP.x64.10.0.26100.6584\build\native\Microsoft.Windows.SDK.cpp.x64.props" Condition="Exists('packages\Microsoft.Windows.SDK.CPP.x64.10.0.26100.6584\build\native\Microsoft.Windows.SDK.cpp.x64.props') and '$(Platform)' == 'x64'"/>
+  <Import Project="packages\Microsoft.Windows.SDK.CPP.10.0.26100.6584\build\native\Microsoft.Windows.SDK.cpp.props" Condition="Exists('packages\Microsoft.Windows.SDK.CPP.10.0.26100.6584\build\native\Microsoft.Windows.SDK.cpp.props')"/>
+</Project>

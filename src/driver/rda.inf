@@ -1,0 +1,71 @@
+;
+; rda.inf - RDA Raw Disk Access Driver
+;
+; Two deployment profiles share one binary:
+;   1. Raw-access service (control device; any service name - device identity
+;      derives from the service name at runtime). Install via install.ps1
+;      with -ServiceName eprdtdrv for Device.mo drop-in compatibility.
+;   2. WinPE disk-class upper filter (EUDCPEPM parity): the [ClassInstall]
+;      UpperFilters registration below + Parameters\FilterMode=1.
+;
+; This INF installs profile 1 (a kernel driver service). Profile 2 is
+; applied by the WinPE builder (scripts/winpe/) or manually via
+; scripts/install-filter.ps1.
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = System
+ClassGuid   = {4D36E97D-E325-11CE-BFC1-08002BE10318}
+Provider    = %ProviderName%
+CatalogFile = rda.cat
+DriverVer   = 01/01/2026,1.0.0.0
+PnpLockPolicy = 1
+
+[DestinationDirs]
+DefaultDestDir = 12 ; %windir%\system32\drivers
+
+[SourceDisksNames]
+1 = %DiskName%
+
+[SourceDisksFiles]
+rda.sys = 1
+
+[DefaultInstall]
+CopyFiles = Rda.CopyFiles
+Service   = Rda.Service
+
+[DefaultUninstall]
+DelFiles = Rda.CopyFiles
+Service  = Rda.ServiceUninstall
+
+[Rda.CopyFiles]
+rda.sys,,,4
+
+[Rda.Service]
+DisplayName    = %ServiceDesc%
+Description    = %ServiceDesc%
+ServiceType    = 1  ; SERVICE_KERNEL_DRIVER
+StartType      = 3  ; SERVICE_DEMAND_START
+ErrorControl   = 1  ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\rda.sys
+
+[Rda.ServiceUninstall]
+DisplayName = %ServiceDesc%
+Description = %ServiceDesc%
+ServiceType = 1
+StartType   = 3
+ErrorControl= 1
+ServiceBinary= %12%\rda.sys
+DelReg       = Rda.Parameters
+
+[Rda.Parameters]
+HKR,"Parameters","IoctlBase",0x00010001,0x00000000
+HKR,"Parameters","MaxDisks",0x00010001,0x000000C8
+HKR,"Parameters","DebugLevel",0x00010001,0x00000001
+HKR,"Parameters","SessionsEnabled",0x00010001,0x00000001
+
+[Strings]
+ProviderName  = "heicfast / RDA contributors"
+ServiceDesc   = "RDA Raw Disk Access Driver"
+DiskName      = "RDA installation"
