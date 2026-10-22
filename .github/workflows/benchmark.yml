@@ -99,10 +99,11 @@ jobs:
           Initialize-Disk -Number $disk.Number -PartitionStyle GPT
           $p1 = New-Partition -DiskNumber $disk.Number -Size 3GB -AssignDriveLetter
           $p2 = New-Partition -DiskNumber $disk.Number -UseMaximumSize -AssignDriveLetter
-          $v1 = Format-Volume -Partition $p1 -FileSystem NTFS -NewFileSystemLabel RDA-NTFS -Confirm:$false
-          $v2 = Format-Volume -Partition $p2 -FileSystem FAT32 -NewFileSystemLabel RDA-FAT32 -Confirm:$false
-          $letter1 = (Get-Partition -DiskNumber $disk.Number | Select-Object -First 1).DriveLetter
-          $letter2 = (Get-Partition -DiskNumber $disk.Number | Select-Object -Skip 1 -First 1).DriveLetter
+          Format-Volume -Partition $p1 -FileSystem NTFS -NewFileSystemLabel RDA-NTFS -Confirm:$false | Out-Null
+          Format-Volume -Partition $p2 -FileSystem FAT32 -NewFileSystemLabel RDA-FAT32 -Confirm:$false | Out-Null
+          $letter1 = $p1.DriveLetter
+          $letter2 = $p2.DriveLetter
+          if (-not $letter1 -or -not $letter2) { throw "no drive letters assigned ($letter1/$letter2)" }
 
           function New-SeedFile($path, $header, $size, $tail) {
             $fs = [System.IO.File]::OpenWrite($path)
@@ -114,7 +115,7 @@ jobs:
             $fs.Close()
           }
 
-          $root = "$letter1`:\seed"
+          $root = "${letter1}:\seed"
           New-Item -ItemType Directory -Force $root | Out-Null
           # JPEG (real header/trailer + random payload)
           New-SeedFile "$root\photo1.jpg" ([byte[]](0xFF,0xD8,0xFF,0xE0,0,0x10,0x4A,0x46,0x49,0x46,0,1)) (4MB) ([byte[]](0xFF,0xD9))
@@ -140,8 +141,8 @@ jobs:
             [System.IO.File]::WriteAllBytes("$small\f$_.bin", $b)
           }
           # Usable-region patterns differ from empty space; force metadata flush
-          Write-VolumeCache $letter1":" | Out-Null
-          Write-VolumeCache $letter2":" | Out-Null
+          Write-VolumeCache "${letter1}:" | Out-Null
+          Write-VolumeCache "${letter2}:" | Out-Null
           Get-ChildItem $root -Recurse | Measure-Object -Sum Length | ForEach-Object {
             "seeded files bytes: $($_.Sum)"
           }
