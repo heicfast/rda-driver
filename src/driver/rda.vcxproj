@@ -87,10 +87,6 @@
       <!-- wdmsec.lib: IoCreateDeviceSecure (device SDDL). -->
       <AdditionalDependencies>wdmsec.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-    <Inf>
-      <SpecifyArchitecture>true</SpecifyArchitecture>
-      <Architecture>x64</Architecture>
-    </Inf>
   </ItemDefinitionGroup>
 
   <ItemGroup>
@@ -117,8 +113,11 @@
     <ClInclude Include="rda_version.h" />
   </ItemGroup>
 
+  <!-- rda.inf ships as static content (no stampinf/Inf2Cat processing in the
+       build; the release pipeline stages it verbatim). Keeping it out of the
+       Inf item group avoids the WDK INF tooling entirely. -->
   <ItemGroup>
-    <Inf Include="rda.inf" />
+    <None Include="rda.inf" />
   </ItemGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

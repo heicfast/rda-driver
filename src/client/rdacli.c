@@ -27,7 +27,7 @@
 #include "rda_ioctl.h"
 
 #define RDA_DEVICE_SYM_FMT L"\\\\.\\%ws"
-#define RDA_OPEN_FMT       L"\\\\.\\%ws\\%u\\%u"
+#define RDA_OPEN_FMT       L"\\\\.\\%ws\\%u\\%u\\%u"
 #define RDA_MAX_PATH_W     256
 
 static int Fail(const char *what, DWORD err) {
@@ -150,7 +150,7 @@ static int CmdGrammar(ULONG disk) {
     /* Wrong-token open must fail. */
     {
         WCHAR path[RDA_MAX_PATH_W];
-        _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws\\%u\\%u", L"EPRDTDRV",
+        _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws\\%u\\%u\\%u", L"EPRDTDRV",
                      TokenFromPid() ^ 0x5A5A, disk, 0);
         h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
                         FILE_ATTRIBUTE_NORMAL, NULL);
