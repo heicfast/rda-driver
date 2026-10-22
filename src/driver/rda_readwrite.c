@@ -56,6 +56,16 @@
 static LOOKASIDE_LIST_EX g_RdaXferLookaside;
 static BOOLEAN g_RdaXferLookasideInit = FALSE;
 
+typedef struct _RDA_XFER_CONTEXT {
+    KEVENT Wake;             /* set by completion or cancel routine */
+    volatile LONG DoneFlag;  /* set by the completion routine after Iosb copy */
+    volatile LONG Cancelled; /* set by the cancel routine */
+    KEVENT CancelDone;       /* set by the cancel routine on exit (lifetime sync) */
+    volatile LONG CancelStarted;
+    IO_STATUS_BLOCK Iosb; /* final forward status (written by completion) */
+    PIRP ForwardIrp;      /* driver-owned; freed by the dispatcher */
+} RDA_XFER_CONTEXT, *PRDA_XFER_CONTEXT;
+
 static NTSTATUS RdaXferCtxInit(VOID) {
     NTSTATUS status;
 
@@ -69,16 +79,6 @@ static NTSTATUS RdaXferCtxInit(VOID) {
     }
     return STATUS_SUCCESS;
 }
-
-typedef struct _RDA_XFER_CONTEXT {
-    KEVENT Wake;             /* set by completion or cancel routine */
-    volatile LONG DoneFlag;  /* set by the completion routine after Iosb copy */
-    volatile LONG Cancelled; /* set by the cancel routine */
-    KEVENT CancelDone;       /* set by the cancel routine on exit (lifetime sync) */
-    volatile LONG CancelStarted;
-    IO_STATUS_BLOCK Iosb; /* final forward status (written by completion) */
-    PIRP ForwardIrp;      /* driver-owned; freed by the dispatcher */
-} RDA_XFER_CONTEXT, *PRDA_XFER_CONTEXT;
 
 /* Cancel routine for the CALLER's IRP. Runs at DISPATCH_LEVEL with the
  * GLOBAL CANCEL SPINLOCK HELD by the IO manager (it swapped our routine out
