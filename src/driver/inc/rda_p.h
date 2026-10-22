@@ -178,6 +178,9 @@ _IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaReleaseContext(_In_opt_ PRDA_OPEN_CON
 DRIVER_DISPATCH RdaDispatchRead;
 DRIVER_DISPATCH RdaDispatchWrite;
 
+/* Looks-aside teardown for the per-IO transfer contexts (DriverUnload). */
+_IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaReadWriteShutdown(VOID);
+
 /* Internal synchronous sector IO (no caller IRP; used by the session engine). */
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
     RdaSyncDiskReadWrite(_In_ PDEVICE_OBJECT TargetDevice, _In_ UCHAR MajorFunction,

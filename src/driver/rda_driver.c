@@ -39,6 +39,7 @@ static VOID RdaDriverUnload(_In_ PDRIVER_OBJECT DriverObject) {
      * filter role, control device. */
     RdaSessionShutdown();
     RdaDiskCacheShutdown();
+    RdaReadWriteShutdown();
     RdaFilterStop();
     RdaDeleteControlDevice();
 
