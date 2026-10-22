@@ -25,8 +25,7 @@
 
 #include "rda_p.h"
 
-VOID RdaReleaseContext(_In_opt_ PRDA_OPEN_CONTEXT Context)
-{
+VOID RdaReleaseContext(_In_opt_ PRDA_OPEN_CONTEXT Context) {
     if (Context == NULL) {
         return;
     }
@@ -41,8 +40,7 @@ VOID RdaReleaseContext(_In_opt_ PRDA_OPEN_CONTEXT Context)
     RdaFree(Context);
 }
 
-static NTSTATUS RdaDispatchCreateInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
-{
+static NTSTATUS RdaDispatchCreateInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack) {
     NTSTATUS status;
     PFILE_OBJECT fileObject = Stack->FileObject;
     PRDA_OPEN_CONTEXT context;
@@ -57,8 +55,7 @@ static NTSTATUS RdaDispatchCreateInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION St
     fileName = &fileObject->FileName;
 
     /* Portability guard: the shared classifier receives (buffer, wchars). */
-    RdaClassifyOpenPath(fileName->Buffer,
-                        fileName->Length / sizeof(WCHAR), &openInfo);
+    RdaClassifyOpenPath(fileName->Buffer, fileName->Length / sizeof(WCHAR), &openInfo);
 
     if (openInfo.Kind == RDA_OPEN_CLASS_GLOBAL) {
         /* Bare open: succeeds with no context (reference parity). */
@@ -75,15 +72,15 @@ static NTSTATUS RdaDispatchCreateInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION St
      * the device DACL is the real boundary). */
     token = RdaComputePidToken((ULONG)(ULONG_PTR)PsGetCurrentProcessId());
     if (token != openInfo.Token) {
-        RDA_TRACE(RDA_LEVEL_WARN, "create: token mismatch (got %u want %u)", openInfo.Token,
-                  token);
+        RDA_TRACE(RDA_LEVEL_WARN, "create: token mismatch (got %u want %u)", openInfo.Token, token);
         return STATUS_INVALID_PARAMETER;
     }
 
     if (openInfo.Kind == RDA_OPEN_CLASS_DISK && openInfo.DiskNumber >= g_RdaParameters.MaxDisks) {
         return STATUS_INVALID_PARAMETER; /* reference: disk# <= 199 */
     }
-    if (openInfo.Kind == RDA_OPEN_CLASS_DISK_EPM && openInfo.DiskNumber >= RDA_DISK_LIMIT_EUEDKEPM) {
+    if (openInfo.Kind == RDA_OPEN_CLASS_DISK_EPM &&
+        openInfo.DiskNumber >= RDA_DISK_LIMIT_EUEDKEPM) {
         return STATUS_INVALID_PARAMETER; /* EUEDKEPM parity: disk# < 100 */
     }
 
@@ -118,14 +115,12 @@ static NTSTATUS RdaDispatchCreateInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION St
     fileObject->FsContext = context->TargetFileObject;
     fileObject->FsContext2 = context;
 
-    RDA_TRACE(RDA_LEVEL_INFO, "create: kind=%u disk=%u vol=%u ss=%u mode=%ld",
-              openInfo.Kind, openInfo.DiskNumber, openInfo.VolumeNumber,
-              context->SectorSize, context->Mode);
+    RDA_TRACE(RDA_LEVEL_INFO, "create: kind=%u disk=%u vol=%u ss=%u mode=%ld", openInfo.Kind,
+              openInfo.DiskNumber, openInfo.VolumeNumber, context->SectorSize, context->Mode);
     return STATUS_SUCCESS;
 }
 
-NTSTATUS RdaDispatchCreate(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
-{
+NTSTATUS RdaDispatchCreate(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     NTSTATUS status;
     PIO_STACK_LOCATION stack;
 
@@ -142,8 +137,7 @@ NTSTATUS RdaDispatchCreate(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
 
 /* CLEANUP: last reference from user mode is closing the handle; release the
  * target bindings now (fix F9). FsContext/FsContext2 are cleared. */
-NTSTATUS RdaDispatchCleanup(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
-{
+NTSTATUS RdaDispatchCleanup(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     PIO_STACK_LOCATION stack;
     PFILE_OBJECT fileObject;
     PRDA_OPEN_CONTEXT context;
@@ -168,8 +162,7 @@ NTSTATUS RdaDispatchCleanup(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS RdaDispatchClose(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
-{
+NTSTATUS RdaDispatchClose(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     /* CLEANUP performed the release; CLOSE just completes (reference parity:
      * a 0-status complete for every close). */
     UNREFERENCED_PARAMETER(DeviceObject);

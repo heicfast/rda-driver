@@ -18,66 +18,59 @@
  * Licensed under the MIT license. See LICENSE.
  */
 
-#include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <windows.h>
 
-#include "rda_ioctl.h"
 #include "rda_compat.h"
+#include "rda_ioctl.h"
 
 #define RDA_DEVICE_SYM_FMT L"\\\\.\\%ws"
-#define RDA_OPEN_FMT L"\\\\.\\%ws\\%u\\%u"
-#define RDA_MAX_PATH_W 256
+#define RDA_OPEN_FMT       L"\\\\.\\%ws\\%u\\%u"
+#define RDA_MAX_PATH_W     256
 
-static int Fail(const char *what, DWORD err)
-{
+static int Fail(const char *what, DWORD err) {
     printf("FAIL %s (gle=%lu, 0x%08lX)\n", what, err, err);
     return 2;
 }
 
-static ULONG TokenFromPid(void)
-{
+static ULONG TokenFromPid(void) {
     return RdaComputePidToken((ULONG)GetCurrentProcessId());
 }
 
-static HANDLE OpenDevice(DWORD access)
-{
+static HANDLE OpenDevice(DWORD access) {
     WCHAR path[RDA_MAX_PATH_W];
     _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws", L"EPRDTDRV");
     return CreateFileW(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
-                      FILE_ATTRIBUTE_NORMAL, NULL);
+                       FILE_ATTRIBUTE_NORMAL, NULL);
 }
 
-static HANDLE OpenGlobal(DWORD access)
-{
+static HANDLE OpenGlobal(DWORD access) {
     return OpenDevice(access);
 }
 
 /* Opens \\.\EPRDTDRV\<token>\<disk> (the EPMNtDrv 3-segment grammar). */
-static HANDLE OpenDisk(DWORD access, ULONG disk)
-{
+static HANDLE OpenDisk(DWORD access, ULONG disk) {
     WCHAR path[RDA_MAX_PATH_W];
     _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, RDA_OPEN_FMT, L"EPRDTDRV", TokenFromPid(), disk,
                  0);
     return CreateFileW(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
-                      FILE_ATTRIBUTE_NORMAL, NULL);
+                       FILE_ATTRIBUTE_NORMAL, NULL);
 }
 
 /* Opens \\.\EPRDTDRV\<token>\Volume\<n>. */
-static HANDLE OpenVolume(DWORD access, ULONG volume)
-{
+static HANDLE OpenVolume(DWORD access, ULONG volume) {
     WCHAR path[RDA_MAX_PATH_W];
     _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws\\%u\\Volume\\%u", L"EPRDTDRV",
                  TokenFromPid(), volume);
     return CreateFileW(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
-                      FILE_ATTRIBUTE_NORMAL, NULL);
+                       FILE_ATTRIBUTE_NORMAL, NULL);
 }
 
 /* ------------------------------------------------------------------ info -- */
 
-static int CmdInfo(void)
-{
+static int CmdInfo(void) {
     HANDLE h = OpenGlobal(GENERIC_READ);
     DWORD bytes = 0;
     RDA_DRIVER_INFO info;
@@ -107,8 +100,7 @@ static int CmdInfo(void)
 
 /* --------------------------------------------------------------- grammar -- */
 
-static int CmdGrammar(ULONG disk)
-{
+static int CmdGrammar(ULONG disk) {
     HANDLE h;
     DWORD bytes = 0;
     LONG mode = -1;
@@ -118,8 +110,8 @@ static int CmdGrammar(ULONG disk)
     if (h == INVALID_HANDLE_VALUE) {
         return Fail("open disk (3-segment)", GetLastError());
     }
-    if (!DeviceIoControl(h, IOCTL_RDA_GET_DISK_CONTEXT_MODE, NULL, 0, &mode, sizeof(mode),
-                         &bytes, NULL) ||
+    if (!DeviceIoControl(h, IOCTL_RDA_GET_DISK_CONTEXT_MODE, NULL, 0, &mode, sizeof(mode), &bytes,
+                         NULL) ||
         bytes != sizeof(mode)) {
         return Fail("GET_DISK_CONTEXT_MODE", GetLastError());
     }
@@ -146,8 +138,8 @@ static int CmdGrammar(ULONG disk)
         WCHAR path[RDA_MAX_PATH_W];
         _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws\\%u\\%u", L"EPRDTDRV",
                      TokenFromPid(), disk);
-        h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
-                       OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+                        FILE_ATTRIBUTE_NORMAL, NULL);
         if (h == INVALID_HANDLE_VALUE) {
             return Fail("open disk (2-segment/EUEDKEPM)", GetLastError());
         }
@@ -160,8 +152,8 @@ static int CmdGrammar(ULONG disk)
         WCHAR path[RDA_MAX_PATH_W];
         _snwprintf_s(path, RDA_MAX_PATH_W, _TRUNCATE, L"\\\\.\\%ws\\%u\\%u", L"EPRDTDRV",
                      TokenFromPid() ^ 0x5A5A, disk, 0);
-        h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
-                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+                        FILE_ATTRIBUTE_NORMAL, NULL);
         if (h != INVALID_HANDLE_VALUE) {
             CloseHandle(h);
             printf("FAIL: wrong-token open unexpectedly succeeded\n");
@@ -176,8 +168,7 @@ static int CmdGrammar(ULONG disk)
 
 /* ------------------------------------------------------------------ read -- */
 
-static int CmdRead(ULONG disk, unsigned long long offset, unsigned long len)
-{
+static int CmdRead(ULONG disk, unsigned long long offset, unsigned long len) {
     HANDLE h = OpenDisk(GENERIC_READ, disk);
     BYTE *buffer;
     DWORD got = 0;
@@ -204,8 +195,8 @@ static int CmdRead(ULONG disk, unsigned long long offset, unsigned long len)
         /* Legacy contract: reported count is 512x the byte count. */
         if ((unsigned long long)got != (unsigned long long)len * RDA_LEGACY_INFORMATION_SCALE) {
             printf("NOTE: reported %lu bytes (expected legacy scale x%u -> %llu)\n", got,
-                   RDA_LEGACY_INFORMATION_SCALE, (unsigned long long)len *
-                       RDA_LEGACY_INFORMATION_SCALE);
+                   RDA_LEGACY_INFORMATION_SCALE,
+                   (unsigned long long)len * RDA_LEGACY_INFORMATION_SCALE);
         }
         printf("read %lu bytes OK; first bytes:", len);
         for (i = 0; i < len && i < 16; i++) {
@@ -220,8 +211,7 @@ static int CmdRead(ULONG disk, unsigned long long offset, unsigned long len)
 
 /* ------------------------------------------------------------------ ident - */
 
-static int CmdIdent(ULONG pid)
-{
+static int CmdIdent(ULONG pid) {
     HANDLE h = OpenGlobal(GENERIC_READ);
     BYTE buffer[RDA_IDENT_MIN_OUT_LEN];
     DWORD bytes = 0;
@@ -240,8 +230,7 @@ static int CmdIdent(ULONG pid)
 
 /* --------------------------------------------------------------- session -- */
 
-static int CmdSession(ULONG disk, unsigned long long startSec, unsigned long long secs)
-{
+static int CmdSession(ULONG disk, unsigned long long startSec, unsigned long long secs) {
     HANDLE h = OpenGlobal(GENERIC_READ | GENERIC_WRITE);
     RDA_OPEN_SESSION *in;
     DWORD bytes = 0;
@@ -262,7 +251,7 @@ static int CmdSession(ULONG disk, unsigned long long startSec, unsigned long lon
     in->TotalSecs = secs;
     in->BitmapSize = 0x800;
     in->BitmapCount = 0x100;
-    in->SpbInOut = 0; /* auto */
+    in->SpbInOut = 0;                     /* auto */
     memset(in->BlockBitmap, 0xFF, 0x100); /* first 0x100 bytes all-set */
 
     /* OpenSession is issued through the session-code space: base is
@@ -278,8 +267,8 @@ static int CmdSession(ULONG disk, unsigned long long startSec, unsigned long lon
     }
 
     handle = in->SessionHandle;
-    printf("session open: handle=0x%016llX spb=%u sectorSize=%u\n",
-           (unsigned long long)handle, in->SpbInOut, in->SectorSize);
+    printf("session open: handle=0x%016llX spb=%u sectorSize=%u\n", (unsigned long long)handle,
+           in->SpbInOut, in->SectorSize);
 
     /* Pump up to 8 rounds. */
     for (pumpRound = 0; pumpRound < 8; pumpRound++) {
@@ -326,8 +315,8 @@ static int CmdSession(ULONG disk, unsigned long long startSec, unsigned long lon
     {
         ULONG64 closeIn = handle;
         bytes = 0;
-        if (!DeviceIoControl(h, RDA_SESSION_CODE_CLOSE_SESSION, &closeIn, sizeof(closeIn), NULL,
-                             0, &bytes, NULL)) {
+        if (!DeviceIoControl(h, RDA_SESSION_CODE_CLOSE_SESSION, &closeIn, sizeof(closeIn), NULL, 0,
+                             &bytes, NULL)) {
             printf("close failed gle=%lu (continuing)\n", GetLastError());
         }
     }
@@ -340,16 +329,14 @@ static int CmdSession(ULONG disk, unsigned long long startSec, unsigned long lon
 
 /* ----------------------------------------------------------------- bench -- */
 
-static double NowSec(void)
-{
+static double NowSec(void) {
     LARGE_INTEGER freq, counter;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&counter);
     return (double)counter.QuadPart / (double)freq.QuadPart;
 }
 
-static int CmdBenchRead(ULONG disk, unsigned long long secs, ULONG chunkSectors)
-{
+static int CmdBenchRead(ULONG disk, unsigned long long secs, ULONG chunkSectors) {
     HANDLE h;
     BYTE *buffer;
     ULONG chunkBytes = chunkSectors * 512;
@@ -415,8 +402,7 @@ static int CmdBenchRead(ULONG disk, unsigned long long secs, ULONG chunkSectors)
 
 /* ------------------------------------------------------------------ main -- */
 
-static void Usage(void)
-{
+static void Usage(void) {
     printf("usage: rdacli <command> [args]\n"
            "  info\n"
            "  grammar <disk>\n"
@@ -426,8 +412,7 @@ static void Usage(void)
            "  bench read <disk> <secs> [chunkSectors]\n");
 }
 
-int __cdecl wmain(int argc, wchar_t **argv)
-{
+int __cdecl wmain(int argc, wchar_t **argv) {
     if (argc < 2) {
         Usage();
         return 1;

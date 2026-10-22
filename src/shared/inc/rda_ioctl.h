@@ -52,50 +52,49 @@ extern "C" {
  * CTL_CODE(0x600, 0x901, METHOD_BUFFERED, FILE_ANY_ACCESS) = 0x60002404
  * CTL_CODE(0x600, 0x902, METHOD_BUFFERED, FILE_ANY_ACCESS) = 0x60002408
  * ------------------------------------------------------------------------- */
-#define IOCTL_RDA_GET_PROC_NAME 0x60002400UL
-#define IOCTL_RDA_GET_FILE_OBJ_NAME 0x60002404UL
+#define IOCTL_RDA_GET_PROC_NAME         0x60002400UL
+#define IOCTL_RDA_GET_FILE_OBJ_NAME     0x60002404UL
 #define IOCTL_RDA_GET_DISK_CONTEXT_MODE 0x60002408UL
 
 /* Input/output length gates for the identity IOCTLs (reference-exact). */
-#define RDA_IDENT_IN_LEN 4UL           /* u32 PID or HANDLE */
-#define RDA_IDENT_MIN_OUT_LEN 0x208UL  /* >= 520 bytes (260 WCHARs, MAX_PATH) */
+#define RDA_IDENT_IN_LEN      4UL     /* u32 PID or HANDLE */
+#define RDA_IDENT_MIN_OUT_LEN 0x208UL /* >= 520 bytes (260 WCHARs, MAX_PATH) */
 
 /* ---------------------------------------------------------------------------
  * RDA extended IOCTLs (new, clean interfaces - do not collide with reference
  * function codes 0x900..0x902).
  * ------------------------------------------------------------------------- */
-#define CTL_CODE_RDA(Func) \
-    ((RDA_DEVICE_TYPE << 16) | ((Func) << 2) | 0 /* METHOD_BUFFERED */)
+#define CTL_CODE_RDA(Func) ((RDA_DEVICE_TYPE << 16) | ((Func) << 2) | 0 /* METHOD_BUFFERED */)
 
-#define IOCTL_RDA_GET_INFO CTL_CODE_RDA(0x910)    /* 0x60002440 */
+#define IOCTL_RDA_GET_INFO    CTL_CODE_RDA(0x910) /* 0x60002440 */
 #define IOCTL_RDA_OPEN_TARGET CTL_CODE_RDA(0x911) /* 0x60002444 */
 #define IOCTL_RDA_GET_VERSION CTL_CODE_RDA(0x912) /* 0x60002448 */
 
 /* IOCTL_RDA_GET_INFO output. */
 typedef struct _RDA_DRIVER_INFO {
-    UINT32 StructSize;      /* sizeof(RDA_DRIVER_INFO), for versioning */
-    UINT32 MajorVersion;    /* RDA major */
-    UINT32 MinorVersion;    /* RDA minor */
-    UINT32 Flags;           /* RDA_INFO_FLAG_* */
-    UINT32 MaxDisks;        /* configured disk-number bound (reference: 200) */
-    UINT32 IoctlBase;       /* session-protocol code base in effect */
+    UINT32 StructSize;   /* sizeof(RDA_DRIVER_INFO), for versioning */
+    UINT32 MajorVersion; /* RDA major */
+    UINT32 MinorVersion; /* RDA minor */
+    UINT32 Flags;        /* RDA_INFO_FLAG_* */
+    UINT32 MaxDisks;     /* configured disk-number bound (reference: 200) */
+    UINT32 IoctlBase;    /* session-protocol code base in effect */
 } RDA_DRIVER_INFO, *PRDA_DRIVER_INFO;
 
 #define RDA_INFO_FLAG_FILTER_MODE 0x00000001UL /* PnP filter role active */
-#define RDA_INFO_FLAG_SESSIONS 0x00000002UL    /* copy-session engine active */
+#define RDA_INFO_FLAG_SESSIONS    0x00000002UL /* copy-session engine active */
 
 /* IOCTL_RDA_OPEN_TARGET input (explicit open - no kernel string parsing). */
 typedef struct _RDA_OPEN_TARGET_IN {
-    UINT32 StructSize; /* sizeof(RDA_OPEN_TARGET_IN) */
-    UINT32 Kind;       /* RDA_TARGET_KIND_* */
-    UINT32 DiskNumber; /* Kinds: DISK, DISK_PART */
-    UINT32 PartNumber; /* Kind: DISK_PART (DR-fallback selector, reference parity) */
+    UINT32 StructSize;   /* sizeof(RDA_OPEN_TARGET_IN) */
+    UINT32 Kind;         /* RDA_TARGET_KIND_* */
+    UINT32 DiskNumber;   /* Kinds: DISK, DISK_PART */
+    UINT32 PartNumber;   /* Kind: DISK_PART (DR-fallback selector, reference parity) */
     UINT32 VolumeNumber; /* Kind: VOLUME */
     UINT32 Reserved;
 } RDA_OPEN_TARGET_IN, *PRDA_OPEN_TARGET_IN;
 
-#define RDA_TARGET_KIND_VOLUME 1  /* \\.\SYM\Volume\{N} equivalent */
-#define RDA_TARGET_KIND_DISK 2    /* EUEDKEPM 2-segment variant: whole disk, walk-to-Disk */
+#define RDA_TARGET_KIND_VOLUME    1 /* \\.\SYM\Volume\{N} equivalent */
+#define RDA_TARGET_KIND_DISK      2 /* EUEDKEPM 2-segment variant: whole disk, walk-to-Disk */
 #define RDA_TARGET_KIND_DISK_PART 3 /* EPMNtDrv 3-segment variant */
 
 /* Version reported by IOCTL_RDA_GET_VERSION / session GET_VERSION. */
@@ -145,30 +144,30 @@ typedef struct _RDA_OPEN_TARGET_IN {
  * IoctlBase is the registry DWORD "IoctlBase" (default 0; the WinPE reference
  * deployment sets 0x10000). The 15 normalized commands:
  * ------------------------------------------------------------------------- */
-#define RDA_SESSION_CODE_GET_VERSION 0x800C2AC8UL
-#define RDA_SESSION_CODE_OPEN_SESSION 0x800C2AD0UL
-#define RDA_SESSION_CODE_SESSION_OP 0x800C2AD8UL
-#define RDA_SESSION_CODE_SESSION_OP2 0x800C2AE0UL
-#define RDA_SESSION_CODE_GETNEXTBLOCK 0x800C2AE8UL
+#define RDA_SESSION_CODE_GET_VERSION    0x800C2AC8UL
+#define RDA_SESSION_CODE_OPEN_SESSION   0x800C2AD0UL
+#define RDA_SESSION_CODE_SESSION_OP     0x800C2AD8UL
+#define RDA_SESSION_CODE_SESSION_OP2    0x800C2AE0UL
+#define RDA_SESSION_CODE_GETNEXTBLOCK   0x800C2AE8UL
 #define RDA_SESSION_CODE_SESSION_STATUS 0x800C2AF0UL
-#define RDA_SESSION_CODE_GET_PROGRESS 0x800C2AF8UL
-#define RDA_SESSION_CODE_CLOSE_SESSION 0x800C2B00UL
-#define RDA_SESSION_CODE_DIRECT_READ 0x800C2B0AUL
-#define RDA_SESSION_CODE_DIRECT_WRITE 0x800C2B12UL
-#define RDA_SESSION_CODE_MODE4 0x800C2B18UL
-#define RDA_SESSION_CODE_MODE3 0x800C2B20UL
-#define RDA_SESSION_CODE_SIZED_XFER 0x800C2B2AUL
-#define RDA_SESSION_CODE_SIZED_XFER2 0x800C2B2EUL
-#define RDA_SESSION_CODE_CANCEL 0x800C2B38UL
+#define RDA_SESSION_CODE_GET_PROGRESS   0x800C2AF8UL
+#define RDA_SESSION_CODE_CLOSE_SESSION  0x800C2B00UL
+#define RDA_SESSION_CODE_DIRECT_READ    0x800C2B0AUL
+#define RDA_SESSION_CODE_DIRECT_WRITE   0x800C2B12UL
+#define RDA_SESSION_CODE_MODE4          0x800C2B18UL
+#define RDA_SESSION_CODE_MODE3          0x800C2B20UL
+#define RDA_SESSION_CODE_SIZED_XFER     0x800C2B2AUL
+#define RDA_SESSION_CODE_SIZED_XFER2    0x800C2B2EUL
+#define RDA_SESSION_CODE_CANCEL         0x800C2B38UL
 
 /* Session buffer gates (reference-exact sizes). */
-#define RDA_SESSION_INPUT_MIN_LEN 8UL         /* codes that take a session handle */
+#define RDA_SESSION_INPUT_MIN_LEN       8UL /* codes that take a session handle */
 #define RDA_SESSION_GET_VERSION_MIN_OUT 0x84UL
-#define RDA_SESSION_STRUCT_SIZE 0x840UL       /* OpenSession in/out buffer */
+#define RDA_SESSION_STRUCT_SIZE         0x840UL /* OpenSession in/out buffer */
 #define RDA_SESSION_GETNEXTBLOCK_MIN_IN 0x1EUL
-#define RDA_SESSION_DIRECT_MIN_IN 0x11UL
-#define RDA_SESSION_MODE_MIN_IN 0x04UL
-#define RDA_SESSION_MODE_MIN_OUT 0x1CUL
+#define RDA_SESSION_DIRECT_MIN_IN       0x11UL
+#define RDA_SESSION_MODE_MIN_IN         0x04UL
+#define RDA_SESSION_MODE_MIN_OUT        0x1CUL
 
 /*
  * RDA_OPEN_SESSION layout (overlaid in/out buffer of RDA_SESSION_STRUCT_SIZE
@@ -185,21 +184,21 @@ typedef struct _RDA_OPEN_TARGET_IN {
 #pragma pack(push, 4)
 typedef struct _RDA_OPEN_SESSION {
     /* 0x000 */ UINT32 DiskId;
-    /* 0x004 */ UINT64 DataFirstSec;   /* copy range start sector */
-    /* 0x00C */ UINT64 TotalSecs;      /* must be nonzero */
-    /* 0x014 */ UINT64 ExtentParam1;   /* block-map builder parameter */
-    /* 0x01C */ UINT64 ExtentParam2;   /* block-map builder parameter */
-    /* 0x024 */ UINT64 BitmapSize;     /* must be nonzero */
-    /* 0x02C */ UINT32 BitmapCount;    /* must be nonzero */
-    /* 0x030 */ UINT32 SpbInOut;       /* IN: 0 => driver picks (<0x20 ? 1 : 0x10);
-                                        * OUT: overwritten with the effective
-                                        * spb (reference-verified: the ctor
-                                        * writes the effective spb back at
-                                        * this same offset; +0x838 is unused
-                                        * padding in the reference wire format). */
+    /* 0x004 */ UINT64 DataFirstSec;      /* copy range start sector */
+    /* 0x00C */ UINT64 TotalSecs;         /* must be nonzero */
+    /* 0x014 */ UINT64 ExtentParam1;      /* block-map builder parameter */
+    /* 0x01C */ UINT64 ExtentParam2;      /* block-map builder parameter */
+    /* 0x024 */ UINT64 BitmapSize;        /* must be nonzero */
+    /* 0x02C */ UINT32 BitmapCount;       /* must be nonzero */
+    /* 0x030 */ UINT32 SpbInOut;          /* IN: 0 => driver picks (<0x20 ? 1 : 0x10);
+                                           * OUT: overwritten with the effective
+                                           * spb (reference-verified: the ctor
+                                           * writes the effective spb back at
+                                           * this same offset; +0x838 is unused
+                                           * padding in the reference wire format). */
     /* 0x034 */ UINT8 BlockBitmap[0x800]; /* bit per copy block, NUL pad @0x7FE */
-    /* OUT: */
-    /* 0x834 */ UINT64 SessionHandle;   /* opaque 64-bit handle (RDA: ID, not pointer) */
+                                          /* OUT: */
+    /* 0x834 */ UINT64 SessionHandle;     /* opaque 64-bit handle (RDA: ID, not pointer) */
     /* 0x83C */ UINT32 SectorSize;
 } RDA_OPEN_SESSION, *PRDA_OPEN_SESSION;
 #pragma pack(pop)
@@ -220,8 +219,8 @@ C_ASSERT(sizeof(RDA_OPEN_SESSION) == RDA_SESSION_STRUCT_SIZE);
 /* Reference session identity answered by RDA_SESSION_CODE_GET_VERSION.
  * The reference wrote 0x00010100 then a 0x2E-byte product string. RDA answers
  * the same version dword and its own equal-or-shorter product string. */
-#define RDA_SESSION_PROTO_VERSION 0x00010100UL
-#define RDA_SESSION_PRODUCT_STRING "RDA Disk Copy Driver (c) RDA contributors"
+#define RDA_SESSION_PROTO_VERSION      0x00010100UL
+#define RDA_SESSION_PRODUCT_STRING     "RDA Disk Copy Driver (c) RDA contributors"
 #define RDA_SESSION_PRODUCT_STRING_MAX 0x2EUL
 
 /* Overlap guard: opening a session whose sector range overlaps an active

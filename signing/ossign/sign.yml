@@ -1,0 +1,126 @@
+# Signing workflow of the OSSign mirror repository (RDA).
+#
+# Adapted from OSSign/template-simple: ossign-server dispatches it with the
+# pinned source sha; the review gates the protected "signing" environment;
+# the job rebuilds the driver from the pinned commit (Windows + WDK NuGet),
+# signs with the ossign action (tokenType ossignServer), verifies, fetches
+# the review report and publishes the release.
+#
+# Disabled until OSSign onboarding: requires repo variables
+# SOURCE_REPO / OSSIGN_SERVER / OSSIGN_KEY and the protected environment
+# "signing" to exist. See docs/signing.md.
+
+name: Sign release
+run-name: "Sign ${{ inputs.ref }} [${{ inputs.dispatch_id }}]"      # [DO NOT CHANGE]
+
+on:                                                                 # [DO NOT CHANGE]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or tag of the source repository as requested
+        required: true
+      sha:
+        description: Commit pinned by ossign-server; the build uses this, never the moving ref
+        required: true
+      release_name:
+        description: Name of the GitHub release to publish
+        required: true
+      dispatch_id:
+        description: Dispatch id assigned by ossign-server
+        required: true
+
+env:                                                                 # [DO NOT CHANGE]
+  SOURCE_REPO: ${{ vars.SOURCE_REPO }}
+  OSSIGN_SERVER: ${{ vars.OSSIGN_SERVER }}
+  OSSIGN_KEY: ${{ vars.OSSIGN_KEY }}
+
+permissions:                                                        # [DO NOT CHANGE]
+  contents: write
+  id-token: write
+
+jobs:
+  sign:
+    runs-on: windows-2022                                           # [ADAPT] driver builds need WDK
+    environment: signing                                            # [DO NOT CHANGE]
+    steps:
+      - name: Check out the pinned source commit                    # [DO NOT CHANGE]
+        shell: bash
+        run: |
+          git init src
+          cd src
+          git remote add origin "$SOURCE_REPO"
+          git fetch --depth 1 origin "${{ inputs.sha }}"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "${{ inputs.sha }}"
+
+      # [ADAPT] Toolchain: restore the pinned WDK/SDK and build from the
+      # reviewed commit. The build MUST be reproducible against the PE gate.
+      - name: Restore WDK/SDK (pinned)
+        shell: pwsh
+        run: nuget restore .\src\packages.config -PackagesDirectory .\src\packages\
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Build driver + client
+        shell: pwsh
+        run: |
+          msbuild .\src\rda.sln -m -v:minimal -nologo `
+            -p:Configuration=Release -p:Platform=x64
+
+      - name: Verify PE contract before signing
+        shell: pwsh
+        run: python src\tools\verify_pe.py src\bin\x64\Release\rda.sys
+
+      # [DO NOT CHANGE] At least one signing step through the ossign action.
+      # fileType pecoff covers the .sys; sign the INF/catalog and the client
+      # executable in separate steps (server policy may restrict types).
+      - name: Sign driver binary
+        uses: ossign/ossign@1.3.1
+        with:
+          fileType: pecoff
+          inputFiles: src/bin/x64/Release/rda.sys
+          config: |
+            { "tokenType": "ossignServer",
+              "ossignServer": { "url": "${{ env.OSSIGN_SERVER }}", "key": "${{ env.OSSIGN_KEY }}",
+                                "metadata": { "dispatch": "${{ inputs.dispatch_id }}", "sha": "${{ inputs.sha }}" } } }
+
+      - name: Sign client executable
+        uses: ossign/ossign@1.3.1
+        with:
+          fileType: pecoff
+          inputFiles: src/bin/x64/Release/rdacli.exe
+          config: |
+            { "tokenType": "ossignServer",
+              "ossignServer": { "url": "${{ env.OSSIGN_SERVER }}", "key": "${{ env.OSSIGN_KEY }}",
+                                "metadata": { "dispatch": "${{ inputs.dispatch_id }}", "sha": "${{ inputs.sha }}" } } }
+
+      - name: Verify signatures                                       # [OPTIONAL but kept]
+        shell: bash
+        run: |
+          for f in src/bin/x64/Release/rda.sys src/bin/x64/Release/rdacli.exe; do
+            ossign verify "$f"
+          done
+
+      - name: Fetch the review report                                # [RECOMMENDED]
+        shell: bash
+        run: |
+          OIDC=$(curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$OSSIGN_SERVER" | jq -r .value)
+          mkdir -p review
+          for f in review-report.json review-report.md review-scans.zip review-report.json.p7s; do
+            curl -sS --fail -H "Authorization: Bearer $OIDC" -o "review/$f" \
+              "$OSSIGN_SERVER/api/v1/reviews/${{ inputs.dispatch_id }}/report/$f"
+          done
+
+      - name: Publish release                                        # [OPTIONAL]
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.ref }}-${{ github.run_number }}
+          name: ${{ inputs.release_name }}
+          body_path: review/review-report.md
+          files: |
+            src/bin/x64/Release/rda.sys
+            src/bin/x64/Release/rdacli.exe
+            src/src/driver/rda.inf
+            review/*

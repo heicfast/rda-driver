@@ -46,32 +46,31 @@ extern "C" {
  *   b0..b3 = little-endian bytes of the 32-bit process id
  *   token  = b0 | (b0+b1)<<8 | (b1+b2)<<16 | (b2+b3)<<24   (8-bit wraps)
  */
-static __inline ULONG RdaComputePidToken(ULONG Pid)
-{
+static __inline ULONG RdaComputePidToken(ULONG Pid) {
     unsigned char b0 = (unsigned char)(Pid & 0xff);
     unsigned char b1 = (unsigned char)((Pid >> 8) & 0xff);
     unsigned char b2 = (unsigned char)((Pid >> 16) & 0xff);
     unsigned char b3 = (unsigned char)((Pid >> 24) & 0xff);
 
     return (ULONG)b0 | ((ULONG)(unsigned char)(b0 + b1) << 8) |
-           ((ULONG)(unsigned char)(b1 + b2) << 16) |
-           ((ULONG)(unsigned char)(b2 + b3) << 24);
+           ((ULONG)(unsigned char)(b1 + b2) << 16) | ((ULONG)(unsigned char)(b2 + b3) << 24);
 }
 
 /* Result kinds for RdaClassifyOpenPath. */
-#define RDA_OPEN_CLASS_REJECT 0   /* malformed token/target - STATUS_INVALID_PARAMETER */
-#define RDA_OPEN_CLASS_GLOBAL 1   /* name < 2 wchars: no-target handle (EPMNtDrv
-                                  * completes these SUCCESSFULLY - global-handle /
-                                  * identity-IOCTL mode. EUEDKEPM rejected them;
-                                  * the merged driver follows EPMNtDrv.) */
-#define RDA_OPEN_CLASS_VOLUME 2   /* \<token>\Volume\<N> */
-#define RDA_OPEN_CLASS_DISK 3     /* \<token>\<disk>\<anything>: EPMNtDrv semantics */
+#define RDA_OPEN_CLASS_REJECT 0 /* malformed token/target - STATUS_INVALID_PARAMETER */
+#define RDA_OPEN_CLASS_GLOBAL                                                                      \
+    1                             /* name < 2 wchars: no-target handle (EPMNtDrv                   \
+                                   * completes these SUCCESSFULLY - global-handle /                \
+                                   * identity-IOCTL mode. EUEDKEPM rejected them;                  \
+                                   * the merged driver follows EPMNtDrv.) */
+#define RDA_OPEN_CLASS_VOLUME   2 /* \<token>\Volume\<N> */
+#define RDA_OPEN_CLASS_DISK     3 /* \<token>\<disk>\<anything>: EPMNtDrv semantics */
 #define RDA_OPEN_CLASS_DISK_EPM 4 /* \<token>\<disk>: EUEDKEPM semantics */
 
 typedef struct _RDA_OPEN_INFO {
-    UINT32 Kind;       /* RDA_OPEN_CLASS_* */
-    UINT32 Token;      /* parsed first-segment value (pre-verification) */
-    UINT32 DiskNumber; /* Kinds 3,4 */
+    UINT32 Kind;         /* RDA_OPEN_CLASS_* */
+    UINT32 Token;        /* parsed first-segment value (pre-verification) */
+    UINT32 DiskNumber;   /* Kinds 3,4 */
     UINT32 VolumeNumber; /* Kind 2 */
 } RDA_OPEN_INFO, *PRDA_OPEN_INFO;
 
@@ -89,8 +88,7 @@ typedef struct _RDA_OPEN_INFO {
  * leading whitespace; we mirror it for exactness even though no legitimate
  * client produces whitespace.
  */
-static __inline int RdaParseUnsigned(PCWSTR Buffer, UINT32 Chars, UINT32 *Value)
-{
+static __inline int RdaParseUnsigned(PCWSTR Buffer, UINT32 Chars, UINT32 *Value) {
     UINT32 i;
     UINT64 acc = 0;
     int haveDigits = 0;
@@ -156,8 +154,7 @@ static __inline int RdaParseUnsigned(PCWSTR Buffer, UINT32 Chars, UINT32 *Value)
  * reference scanned for the separator from index 1 and used chars[1..idx-1]
  * as the token, so a leading '\' is implicit in the reference's grammar.
  */
-static __inline void RdaClassifyOpenPath(PCWSTR Buffer, UINT32 Chars, PRDA_OPEN_INFO Info)
-{
+static __inline void RdaClassifyOpenPath(PCWSTR Buffer, UINT32 Chars, PRDA_OPEN_INFO Info) {
     UINT32 sepIdx;
     UINT32 i;
     UINT32 value;
@@ -249,8 +246,7 @@ static __inline void RdaClassifyOpenPath(PCWSTR Buffer, UINT32 Chars, PRDA_OPEN_
         }
         /* Skip any whitespace/sign the parser tolerated. */
         i = 0;
-        while (i < remChars &&
-               (Buffer[remStart + i] == L' ' || Buffer[remStart + i] == L'\t')) {
+        while (i < remChars && (Buffer[remStart + i] == L' ' || Buffer[remStart + i] == L'\t')) {
             i++;
         }
         if (Buffer[remStart + i] == L'+') {

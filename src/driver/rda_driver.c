@@ -31,8 +31,7 @@ DRIVER_UNLOAD RdaDriverUnload;
 
 static DRIVER_DISPATCH RdaDispatchDefault;
 
-static VOID RdaDriverUnload(_In_ PDRIVER_OBJECT DriverObject)
-{
+static VOID RdaDriverUnload(_In_ PDRIVER_OBJECT DriverObject) {
     UNREFERENCED_PARAMETER(DriverObject);
 
     RDA_ENTER("DriverUnload");
@@ -47,8 +46,7 @@ static VOID RdaDriverUnload(_In_ PDRIVER_OBJECT DriverObject)
     RDA_EXIT("DriverUnload");
 }
 
-static NTSTATUS RdaDispatchDefault(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
-{
+static NTSTATUS RdaDispatchDefault(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     UNREFERENCED_PARAMETER(DeviceObject);
 
     /* Every unhandled major. The reference drivers left these slots empty
@@ -60,8 +58,7 @@ static NTSTATUS RdaDispatchDefault(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIR
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
-{
+NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath) {
     NTSTATUS status;
     ULONG i;
 

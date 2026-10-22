@@ -42,12 +42,12 @@
 
 #include "rda_p.h"
 
-#define RDA_SESSION_MAGIC (('R' << 24) | ('D' << 16) | ('A' << 8) | 'S')
-#define RDA_SESSION_TABLE_SIZE 64
-#define RDA_SESSION_KICK_CAP 301 /* reference: 0x12D */
-#define RDA_SESSION_STATE_INIT 0x38
+#define RDA_SESSION_MAGIC       (('R' << 24) | ('D' << 16) | ('A' << 8) | 'S')
+#define RDA_SESSION_TABLE_SIZE  64
+#define RDA_SESSION_KICK_CAP    301 /* reference: 0x12D */
+#define RDA_SESSION_STATE_INIT  0x38
 #define RDA_SESSION_STATE_ABORT 3
-#define RDA_SESSION_MAX_BLOCKS (0x800 * 8) /* 0x800-byte bitmap, 16384 blocks */
+#define RDA_SESSION_MAX_BLOCKS  (0x800 * 8) /* 0x800-byte bitmap, 16384 blocks */
 
 typedef struct _RDA_PUMP_NODE {
     LIST_ENTRY ListEntry;
@@ -65,13 +65,13 @@ typedef struct _RDA_SESSION {
     ULONG TailSectors; /* remainder sectors of the final block */
     ULONG64 TotalSecs;
     ULONG64 DataFirstSec;
-    ULONG64 NextBlock;   /* cursor: index of the next block to stream */
-    ULONG TotalBlocks;    /* ceil(TotalSecs / Spb) */
+    ULONG64 NextBlock; /* cursor: index of the next block to stream */
+    ULONG TotalBlocks; /* ceil(TotalSecs / Spb) */
     volatile LONG64 BytesDone;
     ULONG64 TotalBytes;
     volatile LONG State;
     volatile LONG Abort;
-    PUCHAR BlockBitmap; /* owned copy, TotalBlocks bits, 0x800 bytes max */
+    PUCHAR BlockBitmap;          /* owned copy, TotalBlocks bits, 0x800 bytes max */
     PDEVICE_OBJECT TargetDevice; /* referenced */
     PFILE_OBJECT TargetFileObject;
     PETHREAD WorkerThread;
@@ -90,8 +90,7 @@ static volatile LONG g_RdaSessionNextId = 1;
 /* ---------------------------------------------------------------------------
  * Table management
  * ------------------------------------------------------------------------- */
-static PRDA_SESSION RdaSessionFromHandle(_In_ ULONG64 Handle)
-{
+static PRDA_SESSION RdaSessionFromHandle(_In_ ULONG64 Handle) {
     ULONG64 index = Handle >> 16;
     ULONG64 generation = Handle & 0xFFFF;
     PRDA_SESSION session;
@@ -111,8 +110,7 @@ static PRDA_SESSION RdaSessionFromHandle(_In_ ULONG64 Handle)
 }
 
 /* Allocates a table slot and returns an opaque handle. */
-static PRDA_SESSION RdaSessionAllocate(_Out_ PULONG64 Handle)
-{
+static PRDA_SESSION RdaSessionAllocate(_Out_ PULONG64 Handle) {
     ULONG i;
 
     ExAcquireFastMutex(&g_RdaSessionTableLock);
@@ -140,8 +138,7 @@ static PRDA_SESSION RdaSessionAllocate(_Out_ PULONG64 Handle)
     return NULL;
 }
 
-static VOID RdaSessionFreeSlot(_In_ PRDA_SESSION Session)
-{
+static VOID RdaSessionFreeSlot(_In_ PRDA_SESSION Session) {
     ExAcquireFastMutex(&g_RdaSessionTableLock);
     Session->Active = 0;
     Session->Magic = 0;
@@ -151,8 +148,7 @@ static VOID RdaSessionFreeSlot(_In_ PRDA_SESSION Session)
 /* Reference-verified overlap guard: same disk + overlapping sector range. */
 static BOOLEAN RdaSessionOverlapsExisting(_In_ ULONG DiskId, _In_ ULONG64 StartSec,
                                           _In_ ULONG64 LengthSecs,
-                                          _In_opt_ PRDA_OPEN_SESSION Self)
-{
+                                          _In_opt_ PRDA_OPEN_SESSION Self) {
     ULONG i;
     BOOLEAN overlaps = FALSE;
 
@@ -182,8 +178,7 @@ static BOOLEAN RdaSessionOverlapsExisting(_In_ ULONG DiskId, _In_ ULONG64 StartS
 /* ---------------------------------------------------------------------------
  * Worker thread: streams bitmap-selected blocks into queued pump IRPs.
  * ------------------------------------------------------------------------- */
-static VOID RdaSessionCancelPumpIrp(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
-{
+static VOID RdaSessionCancelPumpIrp(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     PRDA_SESSION session = (PRDA_SESSION)Irp->Tail.Overlay.DriverContext[0];
     PRDA_PUMP_NODE node;
     PLIST_ENTRY entry;
@@ -224,8 +219,7 @@ static VOID RdaSessionCancelPumpIrp(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PI
 
 /* Reads one block into the pump IRP's SystemBuffer. Returns bytes produced. */
 static NTSTATUS RdaSessionReadBlock(_In_ PRDA_SESSION Session, _Out_ PUCHAR Buffer,
-                                    _In_ ULONG BufferBytes, _Out_ PULONG Produced)
-{
+                                    _In_ ULONG BufferBytes, _Out_ PULONG Produced) {
     NTSTATUS status;
     ULONG block;
     ULONG sectors;
@@ -263,8 +257,7 @@ static NTSTATUS RdaSessionReadBlock(_In_ PRDA_SESSION Session, _Out_ PUCHAR Buff
         }
     }
 
-    offset.QuadPart = ((ULONG64)block * Session->Spb + Session->DataFirstSec) *
-                      Session->SectorSize;
+    offset.QuadPart = ((ULONG64)block * Session->Spb + Session->DataFirstSec) * Session->SectorSize;
     status = RdaSyncDiskReadWrite(Session->TargetDevice, IRP_MJ_READ, Buffer, bytes, &offset,
                                   &information);
     if (NT_SUCCESS(status)) {
@@ -275,8 +268,7 @@ static NTSTATUS RdaSessionReadBlock(_In_ PRDA_SESSION Session, _Out_ PUCHAR Buff
     return status;
 }
 
-static VOID RdaSessionWorker(_In_ PVOID StartContext)
-{
+static VOID RdaSessionWorker(_In_ PVOID StartContext) {
     PRDA_SESSION session = (PRDA_SESSION)StartContext;
 
     for (;;) {
@@ -288,8 +280,8 @@ static VOID RdaSessionWorker(_In_ PVOID StartContext)
 
         waitObjects[0] = (PVOID)&session->WorkerStop;
         waitObjects[1] = (PVOID)&session->WorkerKick;
-        waitStatus = KeWaitForMultipleObjects(2, waitObjects, WaitAny, Executive, KernelMode,
-                                              FALSE, &timeout, NULL);
+        waitStatus = KeWaitForMultipleObjects(2, waitObjects, WaitAny, Executive, KernelMode, FALSE,
+                                              &timeout, NULL);
         if (waitStatus == STATUS_WAIT_0) {
             break; /* stop requested */
         }
@@ -341,9 +333,8 @@ static VOID RdaSessionWorker(_In_ PVOID StartContext)
                 ULONG produced = 0;
 
                 if (irp->AssociatedIrp.SystemBuffer != NULL && outBytes != 0) {
-                    status = RdaSessionReadBlock(session,
-                                                  (PUCHAR)irp->AssociatedIrp.SystemBuffer,
-                                                  outBytes, &produced);
+                    status = RdaSessionReadBlock(session, (PUCHAR)irp->AssociatedIrp.SystemBuffer,
+                                                 outBytes, &produced);
                 } else {
                     status = STATUS_INVALID_PARAMETER;
                 }
@@ -374,8 +365,7 @@ static VOID RdaSessionWorker(_In_ PVOID StartContext)
 /* ---------------------------------------------------------------------------
  * Command handlers
  * ------------------------------------------------------------------------- */
-static NTSTATUS RdaSessionOpen(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
-{
+static NTSTATUS RdaSessionOpen(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack) {
     NTSTATUS status;
     PRDA_OPEN_SESSION in = (PRDA_OPEN_SESSION)Irp->AssociatedIrp.SystemBuffer;
     ULONG outLength = Stack->Parameters.DeviceIoControl.OutputBufferLength;
@@ -419,7 +409,7 @@ static NTSTATUS RdaSessionOpen(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
     session->DataFirstSec = in->DataFirstSec;
     session->TotalSecs = in->TotalSecs;
     session->SectorSize = context->SectorSize;
-    session->TargetDevice = context->TargetDevice;   /* adopt reference */
+    session->TargetDevice = context->TargetDevice; /* adopt reference */
     session->TargetFileObject = context->TargetFileObject;
     RdaFree(context);
 
@@ -485,15 +475,13 @@ static NTSTATUS RdaSessionOpen(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
     in->SectorSize = session->SectorSize;
     Irp->IoStatus.Information = RDA_SESSION_STRUCT_SIZE;
 
-    RDA_TRACE(RDA_LEVEL_INFO,
-              "OpenSession: disk=%u first=%llu secs=%llu spb=%u ss=%u blocks=%u",
+    RDA_TRACE(RDA_LEVEL_INFO, "OpenSession: disk=%u first=%llu secs=%llu spb=%u ss=%u blocks=%u",
               session->DiskId, session->DataFirstSec, session->TotalSecs, session->Spb,
               session->SectorSize, session->TotalBlocks);
     return STATUS_SUCCESS;
 }
 
-static VOID RdaSessionCloseWorker(_In_ PRDA_SESSION Session)
-{
+static VOID RdaSessionCloseWorker(_In_ PRDA_SESSION Session) {
     PETHREAD thread = Session->WorkerThread;
 
     if (thread != NULL) {
@@ -506,8 +494,7 @@ static VOID RdaSessionCloseWorker(_In_ PRDA_SESSION Session)
     }
 }
 
-static NTSTATUS RdaSessionClose(_In_ PRDA_SESSION Session)
-{
+static NTSTATUS RdaSessionClose(_In_ PRDA_SESSION Session) {
     /* Complete any abandoned queued IRPs first. */
     {
         KIRQL oldIrql;
@@ -557,8 +544,7 @@ static NTSTATUS RdaSessionClose(_In_ PRDA_SESSION Session)
 }
 
 static NTSTATUS RdaSessionGetNextBlock(_In_ PRDA_SESSION Session, _In_ PIRP Irp,
-                                       _In_ PIO_STACK_LOCATION Stack)
-{
+                                       _In_ PIO_STACK_LOCATION Stack) {
     NTSTATUS status;
     ULONG inLength = Stack->Parameters.DeviceIoControl.InputBufferLength;
     PRDA_PUMP_NODE node;
@@ -597,8 +583,7 @@ static NTSTATUS RdaSessionGetNextBlock(_In_ PRDA_SESSION Session, _In_ PIRP Irp,
 
 static NTSTATUS RdaSessionDirectIo(_In_ PRDA_SESSION Session, _In_ PIRP Irp,
                                    _In_ PIO_STACK_LOCATION Stack, _In_ BOOLEAN IsWrite,
-                                   _In_ BOOLEAN Sized)
-{
+                                   _In_ BOOLEAN Sized) {
     NTSTATUS status;
     ULONG inLength = Stack->Parameters.DeviceIoControl.InputBufferLength;
     ULONG outLength = Stack->Parameters.DeviceIoControl.OutputBufferLength;
@@ -634,9 +619,8 @@ static NTSTATUS RdaSessionDirectIo(_In_ PRDA_SESSION Session, _In_ PIRP Irp,
     }
 
     byteOffset.QuadPart = (LONGLONG)offset;
-    status = RdaSyncDiskReadWrite(Session->TargetDevice,
-                                   IsWrite ? IRP_MJ_WRITE : IRP_MJ_READ, buffer + 0x10, bytes,
-                                   &byteOffset, &information);
+    status = RdaSyncDiskReadWrite(Session->TargetDevice, IsWrite ? IRP_MJ_WRITE : IRP_MJ_READ,
+                                  buffer + 0x10, bytes, &byteOffset, &information);
     if (NT_SUCCESS(status)) {
         Irp->IoStatus.Information = information + 0x10;
     }
@@ -647,15 +631,13 @@ static NTSTATUS RdaSessionDirectIo(_In_ PRDA_SESSION Session, _In_ PIRP Irp,
 /* ---------------------------------------------------------------------------
  * Engine lifecycle
  * ------------------------------------------------------------------------- */
-VOID RdaSessionInit(VOID)
-{
+VOID RdaSessionInit(VOID) {
     RtlZeroMemory(g_RdaSessions, sizeof(g_RdaSessions));
     ExInitializeFastMutex(&g_RdaSessionTableLock);
     g_RdaSessionNextId = 1;
 }
 
-VOID RdaSessionShutdown(VOID)
-{
+VOID RdaSessionShutdown(VOID) {
     ULONG i;
 
     for (i = 0; i < RDA_SESSION_TABLE_SIZE; i++) {
@@ -669,8 +651,7 @@ VOID RdaSessionShutdown(VOID)
  * Protocol dispatch
  * ------------------------------------------------------------------------- */
 NTSTATUS RdaSessionDispatch(_In_ ULONG CustomCode, _In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
-                           _In_opt_ PRDA_OPEN_CONTEXT Context)
-{
+                            _In_opt_ PRDA_OPEN_CONTEXT Context) {
     PRDA_SESSION session;
     ULONG inLength = Stack->Parameters.DeviceIoControl.InputBufferLength;
     ULONG outLength = Stack->Parameters.DeviceIoControl.OutputBufferLength;

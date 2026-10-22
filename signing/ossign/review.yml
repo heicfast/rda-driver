@@ -1,0 +1,79 @@
+# Review workflow of the OSSign mirror repository (RDA).
+#
+# Created from the OSSign mirror template (github.com/OSSign/template-simple);
+# ossign-server dispatches it for the initial review when the mirror is
+# onboarded. It runs the scanners on the pinned source commit and uploads
+# their reports to the review. It does not build or sign anything.
+#
+# [DO NOT CHANGE] blocks are server contract; [ADAPT] is ours.
+#
+# NOTE: OSSign hosts this in the MIRROR repository (OSSign/heicfast--rda-driver)
+# once onboarding is approved. This copy lives here for review-by-repo,
+# and is kept in sync with the mirror by the onboarding process.
+
+name: Review
+run-name: "Review ${{ inputs.ref }} [${{ inputs.dispatch_id }}]"   # [DO NOT CHANGE]
+
+on:                                                                # [DO NOT CHANGE]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or tag of the source repository as requested
+        required: true
+      sha:
+        description: Commit pinned by ossign-server; the scan uses this, never the moving ref
+        required: true
+      release_name:
+        description: Unused here; passed by the server on every dispatch
+        required: true
+      dispatch_id:
+        description: Dispatch id assigned by ossign-server
+        required: true
+
+env:
+  SOURCE_REPO: ${{ vars.SOURCE_REPO }}       # [DO NOT CHANGE] set during onboarding
+  OSSIGN_SERVER: ${{ vars.OSSIGN_SERVER }}   # [DO NOT CHANGE] set during onboarding
+
+permissions:                                  # [DO NOT CHANGE]
+  contents: read
+  id-token: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the pinned source commit      # [DO NOT CHANGE]
+        run: |
+          git init src
+          cd src
+          git remote add origin "$SOURCE_REPO"
+          git fetch --depth 1 origin "${{ inputs.sha }}"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "${{ inputs.sha }}"
+
+      # [ADAPT] Scanners: every tool the review rule lists under "require"
+      # must produce a report. Default OSSign rule: gitleaks + osv-scanner.
+      - name: gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar xz gitleaks
+          ./gitleaks dir src --report-format json --report-path gitleaks.json --exit-code 0 --no-banner
+          test -s gitleaks.json || echo '[]' > gitleaks.json
+
+      - name: osv-scanner
+        run: |
+          curl -sSL -o osv-scanner https://github.com/google/osv-scanner/releases/download/v1.9.1/osv-scanner_linux_amd64
+          chmod +x osv-scanner
+          ./osv-scanner scan --recursive --format json --output osv.json src || true
+          test -s osv.json || echo '{"results":[]}' > osv.json
+
+      - name: Upload scanner reports to the review     # [DO NOT CHANGE]
+        run: |
+          OIDC=$(curl -sS -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$OSSIGN_SERVER" | jq -r .value)
+          jq -n --arg sha "${{ inputs.sha }}" \
+                --rawfile gitleaks gitleaks.json --rawfile osv osv.json \
+                '{sha: $sha, uploads: [
+                   {tool: "gitleaks",    format: "json", content: $gitleaks},
+                   {tool: "osv-scanner", format: "json", content: $osv}]}' > uploads.json
+          curl -sS --fail -X POST -H "Authorization: Bearer $OIDC" -H "Content-Type: application/json" \
+            --data @uploads.json "$OSSIGN_SERVER/api/v1/reviews/${{ inputs.dispatch_id }}/uploads"

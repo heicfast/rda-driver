@@ -33,8 +33,7 @@
 
 /* The name-contains walk of the reference used a 0x200 byte buffer with
  * ObQueryNameString and wcsstr("\Device\Harddisk"). */
-static BOOLEAN RdaDeviceNameContainsHarddisk(_In_ PDEVICE_OBJECT Device, _Out_ BOOLEAN *Contains)
-{
+static BOOLEAN RdaDeviceNameContainsHarddisk(_In_ PDEVICE_OBJECT Device, _Out_ BOOLEAN *Contains) {
     NTSTATUS status;
     PBYTE buffer;
     ULONG returned = 0;
@@ -76,8 +75,7 @@ static BOOLEAN RdaDeviceNameContainsHarddisk(_In_ PDEVICE_OBJECT Device, _Out_ B
 
 /* TRUE when the device's driver object name equals L"Disk"
  * (RtlCompareUnicodeString case-insensitive, reference-exact). */
-static BOOLEAN RdaDriverIsDisk(_In_ PDEVICE_OBJECT Device)
-{
+static BOOLEAN RdaDriverIsDisk(_In_ PDEVICE_OBJECT Device) {
     UNICODE_STRING diskName;
     PDRIVER_OBJECT driver;
 
@@ -93,8 +91,7 @@ static BOOLEAN RdaDriverIsDisk(_In_ PDEVICE_OBJECT Device)
  * object into the context. Caller ensures symmetric release via
  * RdaReleaseContext. */
 static NTSTATUS RdaOpenNamedDevice(_In_ PCWSTR Name, _In_ ULONG Number,
-                                   _Out_ PRDA_OPEN_CONTEXT Context)
-{
+                                   _Out_ PRDA_OPEN_CONTEXT Context) {
     NTSTATUS status;
     WCHAR nameBuffer[64];
     UNICODE_STRING name;
@@ -110,14 +107,12 @@ static NTSTATUS RdaOpenNamedDevice(_In_ PCWSTR Name, _In_ ULONG Number,
     status = IoGetDeviceObjectPointer(&name, FILE_ANY_ACCESS, &Context->TargetFileObject,
                                       &Context->TargetDevice);
     if (!NT_SUCCESS(status)) {
-        RDA_TRACE(RDA_LEVEL_WARN, "[GetVolumeDeviceObejct] %wZ open error 0x%x",
-                  &name, status);
+        RDA_TRACE(RDA_LEVEL_WARN, "[GetVolumeDeviceObejct] %wZ open error 0x%x", &name, status);
     }
     return status;
 }
 
-NTSTATUS RdaResolveVolume(_In_ ULONG VolumeNumber, _Out_ PRDA_OPEN_CONTEXT Context)
-{
+NTSTATUS RdaResolveVolume(_In_ ULONG VolumeNumber, _Out_ PRDA_OPEN_CONTEXT Context) {
     NTSTATUS status;
     PDEVICE_OBJECT top = NULL;
 
@@ -125,8 +120,7 @@ NTSTATUS RdaResolveVolume(_In_ ULONG VolumeNumber, _Out_ PRDA_OPEN_CONTEXT Conte
 
     status = RdaOpenNamedDevice(L"\\Device\\HarddiskVolume%u", VolumeNumber, Context);
     if (!NT_SUCCESS(status)) {
-        RDA_TRACE(RDA_LEVEL_ERROR,
-                  "[GetVolumeDeviceObejct] %ws open error 0x%x,that's it!",
+        RDA_TRACE(RDA_LEVEL_ERROR, "[GetVolumeDeviceObejct] %ws open error 0x%x,that's it!",
                   L"\\Device\\HarddiskVolume", status);
         goto Fail;
     }
@@ -138,7 +132,7 @@ NTSTATUS RdaResolveVolume(_In_ ULONG VolumeNumber, _Out_ PRDA_OPEN_CONTEXT Conte
         goto Fail;
     }
     Context->TargetDevice = top; /* transfer ref (original released in Fail/Release) */
-    Context->Mode = 0;          /* reference parity: volume mode = 0 */
+    Context->Mode = 0;           /* reference parity: volume mode = 0 */
     Context->Kind = RdaCtxVolume;
 
     status = RdaProbeSectorSize(Context->TargetDevice, &Context->SectorSize);
@@ -159,8 +153,7 @@ Fail:
 }
 
 NTSTATUS RdaResolveDisk(_In_ ULONG DiskNumber, _In_ ULONG PartNumber,
-                        _Out_ PRDA_OPEN_CONTEXT Context)
-{
+                        _Out_ PRDA_OPEN_CONTEXT Context) {
     NTSTATUS status;
     PDEVICE_OBJECT top;
     PDEVICE_OBJECT layer;
@@ -178,8 +171,7 @@ NTSTATUS RdaResolveDisk(_In_ ULONG DiskNumber, _In_ ULONG PartNumber,
                   L"\\Device\\Harddisk\\Partition0", status);
         status = RdaOpenNamedDevice(L"\\Device\\Harddisk%u\\DR%u", DiskNumber, Context);
         if (!NT_SUCCESS(status)) {
-            RDA_TRACE(RDA_LEVEL_ERROR,
-                      "[GetDiskDeviceObejct] %ws open error 0x%x,that's it!",
+            RDA_TRACE(RDA_LEVEL_ERROR, "[GetDiskDeviceObejct] %ws open error 0x%x,that's it!",
                       L"\\Device\\Harddisk\\DR", status);
             return status;
         }
@@ -235,8 +227,7 @@ NTSTATUS RdaResolveDisk(_In_ ULONG DiskNumber, _In_ ULONG PartNumber,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS RdaResolveDiskEpm(_In_ ULONG DiskNumber, _Out_ PRDA_OPEN_CONTEXT Context)
-{
+NTSTATUS RdaResolveDiskEpm(_In_ ULONG DiskNumber, _Out_ PRDA_OPEN_CONTEXT Context) {
     NTSTATUS status;
     PDEVICE_OBJECT top;
     PDEVICE_OBJECT layer;
@@ -245,8 +236,7 @@ NTSTATUS RdaResolveDiskEpm(_In_ ULONG DiskNumber, _Out_ PRDA_OPEN_CONTEXT Contex
 
     status = RdaOpenNamedDevice(L"\\Device\\Harddisk%u\\Partition0", DiskNumber, Context);
     if (!NT_SUCCESS(status)) {
-        RDA_TRACE(RDA_LEVEL_ERROR, "[EUEDKEPM] disk %u open failed 0x%08X", DiskNumber,
-                  status);
+        RDA_TRACE(RDA_LEVEL_ERROR, "[EUEDKEPM] disk %u open failed 0x%08X", DiskNumber, status);
         return status;
     }
 
@@ -294,8 +284,7 @@ NTSTATUS RdaResolveDiskEpm(_In_ ULONG DiskNumber, _Out_ PRDA_OPEN_CONTEXT Contex
 /* Probes the target's logical sector size via IOCTL_DISK_GET_DRIVE_GEOMETRY.
  * The reference main gate never did this (its 512-byte hardcode silently
  * corrupted 4Kn IO - fix F1); the copy engine probed geometry per device. */
-NTSTATUS RdaProbeSectorSize(_In_ PDEVICE_OBJECT TargetDevice, _Out_ PULONG SectorSize)
-{
+NTSTATUS RdaProbeSectorSize(_In_ PDEVICE_OBJECT TargetDevice, _Out_ PULONG SectorSize) {
     NTSTATUS status;
     KEVENT event;
     PIRP irp;
@@ -314,8 +303,8 @@ NTSTATUS RdaProbeSectorSize(_In_ PDEVICE_OBJECT TargetDevice, _Out_ PULONG Secto
         return STATUS_UNSUCCESSFUL;
     }
 
-    irp = IoBuildDeviceIoControlRequest(IOCTL_DISK_GET_DRIVE_GEOMETRY, attached, NULL, 0,
-                                        &geometry, sizeof(geometry), FALSE, &event, &iosb);
+    irp = IoBuildDeviceIoControlRequest(IOCTL_DISK_GET_DRIVE_GEOMETRY, attached, NULL, 0, &geometry,
+                                        sizeof(geometry), FALSE, &event, &iosb);
     if (irp == NULL) {
         ObDereferenceObject(attached);
         return STATUS_INSUFFICIENT_RESOURCES;

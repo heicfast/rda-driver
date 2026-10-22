@@ -28,8 +28,7 @@
  * termination. Returns byte length written (including NUL) via Information. */
 static NTSTATUS RdaCopyUnicodeToBuffer(_In_ PUNICODE_STRING Source,
                                        _Out_writes_bytes_(BufferBytes) PVOID Buffer,
-                                       _In_ ULONG BufferBytes, _Out_ PULONG_PTR Information)
-{
+                                       _In_ ULONG BufferBytes, _Out_ PULONG_PTR Information) {
     ULONG bytes;
     ULONG i;
 
@@ -45,8 +44,7 @@ static NTSTATUS RdaCopyUnicodeToBuffer(_In_ PUNICODE_STRING Source,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS RdaIoctlGetProcName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
-{
+NTSTATUS RdaIoctlGetProcName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack) {
     NTSTATUS status;
     ULONG inLength = Stack->Parameters.DeviceIoControl.InputBufferLength;
     ULONG outLength = Stack->Parameters.DeviceIoControl.OutputBufferLength;
@@ -55,8 +53,7 @@ NTSTATUS RdaIoctlGetProcName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
     PEPROCESS process = NULL;
     PUNICODE_STRING imageName = NULL;
 
-    if (inLength != RDA_IDENT_IN_LEN || outLength < RDA_IDENT_MIN_OUT_LEN ||
-        systemBuffer == NULL) {
+    if (inLength != RDA_IDENT_IN_LEN || outLength < RDA_IDENT_MIN_OUT_LEN || systemBuffer == NULL) {
         RDA_TRACE(RDA_LEVEL_WARN, "[GetProcName] para error %u,%u!", inLength, outLength);
         return STATUS_INVALID_PARAMETER;
     }
@@ -71,8 +68,8 @@ NTSTATUS RdaIoctlGetProcName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
 
     status = SeLocateProcessImageName(process, &imageName);
     if (NT_SUCCESS(status)) {
-        status = RdaCopyUnicodeToBuffer(imageName, systemBuffer, outLength,
-                                        &Irp->IoStatus.Information);
+        status =
+            RdaCopyUnicodeToBuffer(imageName, systemBuffer, outLength, &Irp->IoStatus.Information);
         if (imageName->Buffer != NULL) {
             ExFreePool(imageName->Buffer);
         }
@@ -87,8 +84,7 @@ NTSTATUS RdaIoctlGetProcName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
 
 NTSTATUS RdaIoctlGetFileObjNameCore(_In_ HANDLE FileHandle,
                                     _Out_writes_bytes_(BufferBytes) PVOID Buffer,
-                                    _In_ ULONG BufferBytes, _Out_ PULONG_PTR Information)
-{
+                                    _In_ ULONG BufferBytes, _Out_ PULONG_PTR Information) {
     NTSTATUS status;
     PFILE_OBJECT fileObject = NULL;
     PBYTE nameBuffer = NULL;
@@ -100,10 +96,9 @@ NTSTATUS RdaIoctlGetFileObjNameCore(_In_ HANDLE FileHandle,
     *Information = 0;
 
     status = ObReferenceObjectByHandle(FileHandle, 0, *IoFileObjectType, KernelMode,
-                                        (PVOID *)&fileObject, NULL);
+                                       (PVOID *)&fileObject, NULL);
     if (!NT_SUCCESS(status)) {
-        RDA_TRACE(RDA_LEVEL_WARN, "[GetFileObjName] ObReferenceObjectByHandle error 0x%x!",
-                  status);
+        RDA_TRACE(RDA_LEVEL_WARN, "[GetFileObjName] ObReferenceObjectByHandle error 0x%x!", status);
         return status;
     }
 
@@ -129,8 +124,8 @@ NTSTATUS RdaIoctlGetFileObjNameCore(_In_ HANDLE FileHandle,
     /* Compose: device name + file name (reference parity: ObQueryNameString on
      * the DeviceObject, then RtlAppendUnicodeStringToString of FileName). */
     fileNameBytes = fileObject->FileName.Length;
-    combined.Buffer = (PWCHAR)RdaAllocZero((SIZE_T)deviceName->Length + fileNameBytes +
-                                           sizeof(WCHAR));
+    combined.Buffer =
+        (PWCHAR)RdaAllocZero((SIZE_T)deviceName->Length + fileNameBytes + sizeof(WCHAR));
     if (combined.Buffer == NULL) {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto Done;
@@ -153,14 +148,12 @@ Done:
     return status;
 }
 
-NTSTATUS RdaIoctlGetFileObjName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
-{
+NTSTATUS RdaIoctlGetFileObjName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack) {
     ULONG inLength = Stack->Parameters.DeviceIoControl.InputBufferLength;
     ULONG outLength = Stack->Parameters.DeviceIoControl.OutputBufferLength;
     PVOID systemBuffer = Irp->AssociatedIrp.SystemBuffer;
 
-    if (inLength != RDA_IDENT_IN_LEN || outLength < RDA_IDENT_MIN_OUT_LEN ||
-        systemBuffer == NULL) {
+    if (inLength != RDA_IDENT_IN_LEN || outLength < RDA_IDENT_MIN_OUT_LEN || systemBuffer == NULL) {
         RDA_TRACE(RDA_LEVEL_WARN, "[GetFileObjName] para error %u,%u!", inLength, outLength);
         return STATUS_INVALID_PARAMETER;
     }
@@ -168,8 +161,7 @@ NTSTATUS RdaIoctlGetFileObjName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
                                       outLength, &Irp->IoStatus.Information);
 }
 
-NTSTATUS RdaIoctlGetDiskContextMode(_In_ PIRP Irp, _In_ PRDA_OPEN_CONTEXT Context)
-{
+NTSTATUS RdaIoctlGetDiskContextMode(_In_ PIRP Irp, _In_ PRDA_OPEN_CONTEXT Context) {
     PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
     ULONG outLength = stack->Parameters.DeviceIoControl.OutputBufferLength;
 

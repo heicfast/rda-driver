@@ -20,11 +20,11 @@
 #ifndef _RDA_P_H_
 #define _RDA_P_H_
 
+#include "../shared/inc/rda_compat.h"
+#include "../shared/inc/rda_ioctl.h"
+#include "rda_trace.h"
 #include <ntddk.h>
 #include <wdmsec.h>
-#include "rda_trace.h"
-#include "../shared/inc/rda_ioctl.h"
-#include "../shared/inc/rda_compat.h"
 
 #pragma warning(push)
 /* RDA sources compile at /W4 /WX. System/WDK headers are silenced globally
@@ -33,18 +33,19 @@
 /* ---------------------------------------------------------------------------
  * Identity
  * ------------------------------------------------------------------------- */
-#define RDA_POOL_TAG ((ULONG)'rda1')
+#define RDA_POOL_TAG   ((ULONG)'rda1')
 #define RDA_DOS_PREFIX L"\\DosDevices\\"
 #define RDA_DEV_PREFIX L"\\Device\\"
-#define RDA_FALLBACK_BASE_NAME L"EPMNTDRV" /* reference default when the
-                                            * service name is unusable */
-#define RDA_NAME_BUFFER_CHARS 64
+#define RDA_FALLBACK_BASE_NAME                                                                     \
+    L"EPMNTDRV" /* reference default when the                                                      \
+                 * service name is unusable */
+#define RDA_NAME_BUFFER_CHARS   64
 #define RDA_SECTOR_SIZE_DEFAULT 512
 
 /* Reference bounds (documented, parameter-configurable where noted). */
-#define RDA_DISK_LIMIT_EPMNTDRV 200 /* reference: disk# <= 199 */
-#define RDA_DISK_LIMIT_EUEDKEPM 100 /* reference: disk# < 100 */
-#define RDA_QUERY_NAME_BUFFER 0x200 /* reference ObQueryNameString buffer */
+#define RDA_DISK_LIMIT_EPMNTDRV 200   /* reference: disk# <= 199 */
+#define RDA_DISK_LIMIT_EUEDKEPM 100   /* reference: disk# < 100 */
+#define RDA_QUERY_NAME_BUFFER   0x200 /* reference ObQueryNameString buffer */
 
 /* Default device SDDL: Administrators and SYSTEM full access only.
  * This closes the reference drivers' "any process that can open the device
@@ -54,8 +55,8 @@
 /* Class GUID for the RDA control device class (allows admins to tighten
  * device security through the class key, per wdmsec.h guidance).
  * Generated once, fixed forever: {22503FD1-90D4-4322-B62D-9C8FFE186E33}. */
-static const GUID RDA_DEVICE_CLASS_GUID = {0x22503FD1, 0x90D4, 0x4322,
-                                           {0xB6, 0x2D, 0x9C, 0x8F, 0xFE, 0x18, 0x6E, 0x33}};
+static const GUID RDA_DEVICE_CLASS_GUID = {
+    0x22503FD1, 0x90D4, 0x4322, {0xB6, 0x2D, 0x9C, 0x8F, 0xFE, 0x18, 0x6E, 0x33}};
 
 /* ---------------------------------------------------------------------------
  * Per-handle open context (stored in FileObject->FsContext2; the reference
@@ -89,16 +90,16 @@ typedef struct _RDA_OPEN_CONTEXT {
  * docs/architecture.md). Populated at DriverEntry.
  * ------------------------------------------------------------------------- */
 typedef struct _RDA_PARAMETERS {
-    ULONG IoctlBase;    /* session code base (default 0; PE sets 0x10000) */
-    ULONG MaxDisks;     /* open-grammar disk bound (default 200) */
-    ULONG DebugLevel;   /* 0..5 (default 1 = errors only) */
-    ULONG FilterMode;   /* 1 = PnP filter attach role active */
-    ULONG VolSnapAttach; /* 1 = also attach VolSnap devices (PE parity) */
-    ULONG SessionsEnabled; /* 1 = copy-session engine served (default 1) */
-    BOOLEAN UseDeviceName; /* Parameters\DeviceName overrides naming scheme */
+    ULONG IoctlBase;                         /* session code base (default 0; PE sets 0x10000) */
+    ULONG MaxDisks;                          /* open-grammar disk bound (default 200) */
+    ULONG DebugLevel;                        /* 0..5 (default 1 = errors only) */
+    ULONG FilterMode;                        /* 1 = PnP filter attach role active */
+    ULONG VolSnapAttach;                     /* 1 = also attach VolSnap devices (PE parity) */
+    ULONG SessionsEnabled;                   /* 1 = copy-session engine served (default 1) */
+    BOOLEAN UseDeviceName;                   /* Parameters\DeviceName overrides naming scheme */
     WCHAR DeviceName[RDA_NAME_BUFFER_CHARS]; /* \Device base name when
                                                 UseDeviceName */
-    WCHAR Sddl[128]; /* device DACL override; empty -> RDA_DEFAULT_SDDL */
+    WCHAR Sddl[128];                         /* device DACL override; empty -> RDA_DEFAULT_SDDL */
 } RDA_PARAMETERS, *PRDA_PARAMETERS;
 
 /* ---------------------------------------------------------------------------
@@ -119,35 +120,34 @@ _IRQL_requires_max_(PASSIVE_LEVEL) PVOID RdaAllocZero(_In_ SIZE_T Bytes);
 _IRQL_requires_max_(PASSIVE_LEVEL) PVOID RdaAlloc(_In_ SIZE_T Bytes);
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID RdaFree(_In_opt_ PVOID Memory);
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaFormatDeviceName(_Out_ PUNICODE_STRING Name, _In_z_ PCWSTR Format, _In_ ULONG Number);
+    RdaFormatDeviceName(_Out_ PUNICODE_STRING Name, _In_z_ PCWSTR Format, _In_ ULONG Number);
 
 /* ---------------------------------------------------------------------------
  * rda_registry.c
  * ------------------------------------------------------------------------- */
-_IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaReadParameters(_In_ PUNICODE_STRING RegistryPath);
+_IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS RdaReadParameters(_In_ PUNICODE_STRING RegistryPath);
 
 /* ---------------------------------------------------------------------------
  * rda_control.c
  * ------------------------------------------------------------------------- */
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaCreateControlDevice(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath);
+    RdaCreateControlDevice(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath);
 _IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaDeleteControlDevice(VOID);
 
 /* ---------------------------------------------------------------------------
  * rda_target.c - reference-exact resolution chains
  * ------------------------------------------------------------------------- */
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaResolveVolume(_In_ ULONG VolumeNumber, _Out_ PRDA_OPEN_CONTEXT Context);
+    RdaResolveVolume(_In_ ULONG VolumeNumber, _Out_ PRDA_OPEN_CONTEXT Context);
 
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaResolveDisk(_In_ ULONG DiskNumber, _In_ ULONG PartNumber, _Out_ PRDA_OPEN_CONTEXT Context);
+    RdaResolveDisk(_In_ ULONG DiskNumber, _In_ ULONG PartNumber, _Out_ PRDA_OPEN_CONTEXT Context);
 
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaResolveDiskEpm(_In_ ULONG DiskNumber, _Out_ PRDA_OPEN_CONTEXT Context);
+    RdaResolveDiskEpm(_In_ ULONG DiskNumber, _Out_ PRDA_OPEN_CONTEXT Context);
 
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaProbeSectorSize(_In_ PDEVICE_OBJECT TargetDevice, _Out_ PULONG SectorSize);
+    RdaProbeSectorSize(_In_ PDEVICE_OBJECT TargetDevice, _Out_ PULONG SectorSize);
 
 /* ---------------------------------------------------------------------------
  * rda_create.c / cleanup
@@ -166,9 +166,9 @@ DRIVER_DISPATCH RdaDispatchWrite;
 
 /* Internal synchronous sector IO (no caller IRP; used by the session engine). */
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaSyncDiskReadWrite(_In_ PDEVICE_OBJECT TargetDevice, _In_ UCHAR MajorFunction,
-                     _In_ PVOID SystemAddress, _In_ ULONG Length,
-                     _In_ PLARGE_INTEGER ByteOffset, _Out_ PULONG_PTR Information);
+    RdaSyncDiskReadWrite(_In_ PDEVICE_OBJECT TargetDevice, _In_ UCHAR MajorFunction,
+                         _In_ PVOID SystemAddress, _In_ ULONG Length,
+                         _In_ PLARGE_INTEGER ByteOffset, _Out_ PULONG_PTR Information);
 
 /* ---------------------------------------------------------------------------
  * rda_ioctl.c / rda_ident.c
@@ -176,29 +176,28 @@ RdaSyncDiskReadWrite(_In_ PDEVICE_OBJECT TargetDevice, _In_ UCHAR MajorFunction,
 DRIVER_DISPATCH RdaDispatchDeviceControl;
 
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaIoctlGetProcName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack);
+    RdaIoctlGetProcName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack);
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaIoctlGetFileObjName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack);
+    RdaIoctlGetFileObjName(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack);
 
 /* Shared core: resolve a file HANDLE to its fully-qualified NT name into the
  * caller's kernel buffer (used by IOCTL 0x60002404 and the global-handle
  * READ mode). Information receives byte length including the NUL. */
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaIoctlGetFileObjNameCore(_In_ HANDLE FileHandle,
-                           _Out_writes_bytes_(BufferBytes) PVOID Buffer,
-                           _In_ ULONG BufferBytes, _Out_ PULONG_PTR Information);
+    RdaIoctlGetFileObjNameCore(_In_ HANDLE FileHandle, _Out_writes_bytes_(BufferBytes) PVOID Buffer,
+                               _In_ ULONG BufferBytes, _Out_ PULONG_PTR Information);
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaIoctlGetDiskContextMode(_In_ PIRP Irp, _In_ PRDA_OPEN_CONTEXT Context);
+    RdaIoctlGetDiskContextMode(_In_ PIRP Irp, _In_ PRDA_OPEN_CONTEXT Context);
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaIoctlGetInfo(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack);
+    RdaIoctlGetInfo(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack);
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaIoctlGetVersion(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack);
+    RdaIoctlGetVersion(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack);
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaIoctlOpenTarget(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack);
+    RdaIoctlOpenTarget(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack);
 
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaPassThroughIoctl(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
-                    _In_ PRDA_OPEN_CONTEXT Context);
+    RdaPassThroughIoctl(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
+                        _In_ PRDA_OPEN_CONTEXT Context);
 
 /* ---------------------------------------------------------------------------
  * rda_session.c - copy-session engine (EUDCPEPM protocol merge)
@@ -206,8 +205,8 @@ RdaPassThroughIoctl(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
 _IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaSessionInit(VOID);
 _IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaSessionShutdown(VOID);
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaSessionDispatch(_In_ ULONG CustomCode, _In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
-                   _In_opt_ PRDA_OPEN_CONTEXT Context);
+    RdaSessionDispatch(_In_ ULONG CustomCode, _In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
+                       _In_opt_ PRDA_OPEN_CONTEXT Context);
 
 /* ---------------------------------------------------------------------------
  * rda_filter.c - PnP disk-class upper-filter role

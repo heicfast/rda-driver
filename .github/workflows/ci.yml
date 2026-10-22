@@ -64,7 +64,9 @@ jobs:
       - name: Build + run portable unit tests (MSVC /W4 /WX)
         shell: pwsh
         run: |
-          cl /nologo /W4 /WX /std:c11 /external:W0 `
+          # /wd4127: do{}while(0) in the CHECK macro trips C4127 at /W4;
+          # harness-only suppression, documented.
+          cl /nologo /W4 /WX /wd4127 /std:c11 /external:W0 `
              /I src\shared\inc `
              tests\unit\test_compat.c `
              /Fe:bin\test_compat.exe

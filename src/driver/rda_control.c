@@ -26,9 +26,7 @@
  * reference then fell back to "EPMNTDRV"). */
 static BOOLEAN RdaDeriveBaseName(_In_opt_ PUNICODE_STRING RegistryPath,
                                  _Out_ PUNICODE_STRING BaseName,
-                                 _Out_writes_(BufferChars) PWCHAR Buffer,
-                                 _In_ ULONG BufferChars)
-{
+                                 _Out_writes_(BufferChars) PWCHAR Buffer, _In_ ULONG BufferChars) {
     PCWSTR source;
     ULONG lengthChars;
     ULONG lastSep;
@@ -73,8 +71,7 @@ static BOOLEAN RdaDeriveBaseName(_In_opt_ PUNICODE_STRING RegistryPath,
 }
 
 NTSTATUS RdaCreateControlDevice(_In_ PDRIVER_OBJECT DriverObject,
-                                _In_opt_ PUNICODE_STRING RegistryPath)
-{
+                                _In_opt_ PUNICODE_STRING RegistryPath) {
     NTSTATUS status;
     PWCHAR deviceBuffer = NULL;
     PWCHAR dosBuffer = NULL;
@@ -98,8 +95,7 @@ NTSTATUS RdaCreateControlDevice(_In_ PDRIVER_OBJECT DriverObject,
 
     if (g_RdaParameters.UseDeviceName) {
         RtlInitUnicodeString(&baseName, g_RdaParameters.DeviceName);
-    } else if (!RdaDeriveBaseName(RegistryPath, &baseName, baseBuffer,
-                                  RDA_NAME_BUFFER_CHARS)) {
+    } else if (!RdaDeriveBaseName(RegistryPath, &baseName, baseBuffer, RDA_NAME_BUFFER_CHARS)) {
         RtlInitUnicodeString(&baseName, RDA_FALLBACK_BASE_NAME);
         RDA_TRACE(RDA_LEVEL_WARN, "naming fell back to %ws", RDA_FALLBACK_BASE_NAME);
     }
@@ -153,12 +149,10 @@ NTSTATUS RdaCreateControlDevice(_In_ PDRIVER_OBJECT DriverObject,
     /* IoCreateDeviceSecure (wdmsec): named device with an explicit DACL and
      * a class GUID admins can override. The reference used plain
      * IoCreateDevice with default security (fix F2). */
-    status = IoCreateDeviceSecure(DriverObject, 0, &g_RdaDeviceName, FILE_DEVICE_UNKNOWN, 0,
-                                  FALSE, sddlToUse, &RDA_DEVICE_CLASS_GUID,
-                                  &g_RdaControlDevice);
+    status = IoCreateDeviceSecure(DriverObject, 0, &g_RdaDeviceName, FILE_DEVICE_UNKNOWN, 0, FALSE,
+                                  sddlToUse, &RDA_DEVICE_CLASS_GUID, &g_RdaControlDevice);
     if (!NT_SUCCESS(status)) {
-        RDA_TRACE(RDA_LEVEL_ERROR, "[RDA]IoCreateDevice ret,0x%x,%wZ", status,
-                  &g_RdaDeviceName);
+        RDA_TRACE(RDA_LEVEL_ERROR, "[RDA]IoCreateDevice ret,0x%x,%wZ", status, &g_RdaDeviceName);
         goto Fail;
     }
 
@@ -167,15 +161,13 @@ NTSTATUS RdaCreateControlDevice(_In_ PDRIVER_OBJECT DriverObject,
 
     status = IoCreateSymbolicLink(&g_RdaDosName, &g_RdaDeviceName);
     if (!NT_SUCCESS(status)) {
-        RDA_TRACE(RDA_LEVEL_ERROR, "[RDA]IoCreateSymbolicLink ret,0x%x,%wZ", status,
-                  &g_RdaDosName);
+        RDA_TRACE(RDA_LEVEL_ERROR, "[RDA]IoCreateSymbolicLink ret,0x%x,%wZ", status, &g_RdaDosName);
         IoDeleteDevice(g_RdaControlDevice);
         g_RdaControlDevice = NULL;
         goto Fail;
     }
 
-    RDA_TRACE(RDA_LEVEL_INFO, "control device %wZ (%wZ) created", &g_RdaDeviceName,
-              &g_RdaDosName);
+    RDA_TRACE(RDA_LEVEL_INFO, "control device %wZ (%wZ) created", &g_RdaDeviceName, &g_RdaDosName);
     RDA_EXIT("CreateControlDevice");
     return STATUS_SUCCESS;
 
@@ -195,8 +187,7 @@ Fail:
     return status;
 }
 
-VOID RdaDeleteControlDevice(VOID)
-{
+VOID RdaDeleteControlDevice(VOID) {
     if (g_RdaDosName.Buffer != NULL) {
         IoDeleteSymbolicLink(&g_RdaDosName);
         RdaFree(g_RdaDosName.Buffer);

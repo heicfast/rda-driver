@@ -30,14 +30,14 @@
 #include "rda_p.h"
 #include <ntddstor.h>
 
-#define RDA_FILTER_MAGIC 0xD2C8E4C5 /* reference handshake value */
-#define RDA_FILTER_CB_SLOT_OFFSET 0x38 /* reference extension offset */
+#define RDA_FILTER_MAGIC          0xD2C8E4C5 /* reference handshake value */
+#define RDA_FILTER_CB_SLOT_OFFSET 0x38       /* reference extension offset */
 
 typedef struct _RDA_FILTER_EXTENSION {
-    ULONG Magic;              /* RDA_FILTER_MAGIC */
+    ULONG Magic;               /* RDA_FILTER_MAGIC */
     PDRIVER_DISPATCH Callback; /* reference handshake slot at +0x38 area */
     PDEVICE_OBJECT AttachedTo; /* lower device in the stack */
-    ULONG SectorSize;         /* probed geometry */
+    ULONG SectorSize;          /* probed geometry */
     ULONG Flags;
 } RDA_FILTER_EXTENSION, *PRDA_FILTER_EXTENSION;
 
@@ -50,8 +50,7 @@ typedef struct _RDA_PNP_COMPLETION {
 static IO_COMPLETION_ROUTINE RdaFilterPnpStartCompletion;
 
 static NTSTATUS RdaFilterPnpStartCompletion(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp,
-                                            _In_opt_ PVOID Context)
-{
+                                            _In_opt_ PVOID Context) {
     UNREFERENCED_PARAMETER(DeviceObject);
     UNREFERENCED_PARAMETER(Irp);
 
@@ -62,8 +61,7 @@ static NTSTATUS RdaFilterPnpStartCompletion(_In_ PDEVICE_OBJECT DeviceObject, _I
 }
 
 static NTSTATUS RdaFilterPnpStartDevice(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp,
-                                       _In_ PRDA_FILTER_EXTENSION extension)
-{
+                                        _In_ PRDA_FILTER_EXTENSION extension) {
     NTSTATUS status;
     KEVENT event;
     PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
@@ -98,10 +96,8 @@ static NTSTATUS RdaFilterPnpStartDevice(_In_ PDEVICE_OBJECT DeviceObject, _Inout
     return status;
 }
 
-static NTSTATUS RdaFilterPnpQueryRemoveOrStop(_In_ PDEVICE_OBJECT DeviceObject,
-                                              _Inout_ PIRP Irp,
-                                              _In_ PRDA_FILTER_EXTENSION extension)
-{
+static NTSTATUS RdaFilterPnpQueryRemoveOrStop(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp,
+                                              _In_ PRDA_FILTER_EXTENSION extension) {
     UNREFERENCED_PARAMETER(DeviceObject);
 
     /* Forward and let the framework handle attach/detach lifecycle. */
@@ -110,8 +106,7 @@ static NTSTATUS RdaFilterPnpQueryRemoveOrStop(_In_ PDEVICE_OBJECT DeviceObject,
 }
 
 static NTSTATUS RdaFilterPnpRemove(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp,
-                                   _In_ PRDA_FILTER_EXTENSION extension)
-{
+                                   _In_ PRDA_FILTER_EXTENSION extension) {
     NTSTATUS status;
 
     IoSkipCurrentIrpStackLocation(Irp);
@@ -124,8 +119,7 @@ static NTSTATUS RdaFilterPnpRemove(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIR
     return status;
 }
 
-NTSTATUS RdaDispatchPnp(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
-{
+NTSTATUS RdaDispatchPnp(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
     PRDA_FILTER_EXTENSION extension = (PRDA_FILTER_EXTENSION)DeviceObject->DeviceExtension;
 
@@ -164,8 +158,7 @@ NTSTATUS RdaDispatchPnp(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
     return STATUS_INVALID_DEVICE_REQUEST;
 }
 
-NTSTATUS RdaDispatchPower(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
-{
+NTSTATUS RdaDispatchPower(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
     PRDA_FILTER_EXTENSION extension = (PRDA_FILTER_EXTENSION)DeviceObject->DeviceExtension;
 
@@ -186,8 +179,7 @@ NTSTATUS RdaDispatchPower(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
 }
 
 static NTSTATUS RdaFilterAddDeviceInner(_In_ PDRIVER_OBJECT DriverObject,
-                                        _In_ PDEVICE_OBJECT PhysicalDeviceObject)
-{
+                                        _In_ PDEVICE_OBJECT PhysicalDeviceObject) {
     NTSTATUS status;
     PDEVICE_OBJECT filterDevice = NULL;
     PRDA_FILTER_EXTENSION extension;
@@ -226,13 +218,11 @@ static NTSTATUS RdaFilterAddDeviceInner(_In_ PDRIVER_OBJECT DriverObject,
 }
 
 NTSTATUS RdaFilterAddDevice(_In_ PDRIVER_OBJECT DriverObject,
-                            _In_ PDEVICE_OBJECT PhysicalDeviceObject)
-{
+                            _In_ PDEVICE_OBJECT PhysicalDeviceObject) {
     return RdaFilterAddDeviceInner(DriverObject, PhysicalDeviceObject);
 }
 
-NTSTATUS RdaFilterStart(VOID)
-{
+NTSTATUS RdaFilterStart(VOID) {
     /* PnP-driven role: the AddDevice entry point fires for every disk
      * device once this driver is registered as a disk-class UpperFilter
      * (deployment profile: INF install or the WinPE .reg). */
@@ -245,7 +235,6 @@ NTSTATUS RdaFilterStart(VOID)
     return STATUS_SUCCESS;
 }
 
-VOID RdaFilterStop(VOID)
-{
+VOID RdaFilterStop(VOID) {
     /* Stacks detach through PnP REMOVE; nothing global to unwind here. */
 }

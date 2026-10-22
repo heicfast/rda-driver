@@ -28,13 +28,11 @@
  * C4996 is confined to this TU by design. */
 #pragma warning(disable : 4996)
 
-_IRQL_requires_max_(DISPATCH_LEVEL) PVOID RdaAlloc(_In_ SIZE_T Bytes)
-{
+_IRQL_requires_max_(DISPATCH_LEVEL) PVOID RdaAlloc(_In_ SIZE_T Bytes) {
     return ExAllocatePoolWithTag(NonPagedPool, Bytes, RDA_POOL_TAG);
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL) PVOID RdaAllocZero(_In_ SIZE_T Bytes)
-{
+_IRQL_requires_max_(PASSIVE_LEVEL) PVOID RdaAllocZero(_In_ SIZE_T Bytes) {
     PVOID memory = RdaAlloc(Bytes);
     if (memory != NULL) {
         RtlZeroMemory(memory, Bytes);
@@ -42,8 +40,7 @@ _IRQL_requires_max_(PASSIVE_LEVEL) PVOID RdaAllocZero(_In_ SIZE_T Bytes)
     return memory;
 }
 
-_IRQL_requires_max_(DISPATCH_LEVEL) VOID RdaFree(_In_opt_ PVOID Memory)
-{
+_IRQL_requires_max_(DISPATCH_LEVEL) VOID RdaFree(_In_opt_ PVOID Memory) {
     if (Memory != NULL) {
         ExFreePoolWithTag(Memory, RDA_POOL_TAG);
     }
@@ -53,8 +50,7 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID RdaFree(_In_opt_ PVOID Memory)
  * stack buffer + UNICODE_STRING (bounded, no printf). Handles ULONG numbers
  * only, which is all the reference ever formatted. */
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
-RdaFormatDeviceName(_Out_ PUNICODE_STRING Name, _In_z_ PCWSTR Format, _In_ ULONG Number)
-{
+    RdaFormatDeviceName(_Out_ PUNICODE_STRING Name, _In_z_ PCWSTR Format, _In_ ULONG Number) {
     NTSTATUS status;
     UNICODE_STRING numberString;
     WCHAR numberBuffer[12];

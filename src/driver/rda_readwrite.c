@@ -47,21 +47,20 @@
 #include "rda_p.h"
 
 typedef struct _RDA_XFER_CONTEXT {
-    KEVENT Wake;        /* set by completion or cancel routine */
-    volatile LONG DoneFlag; /* set by the completion routine after Iosb copy */
+    KEVENT Wake;             /* set by completion or cancel routine */
+    volatile LONG DoneFlag;  /* set by the completion routine after Iosb copy */
     volatile LONG Cancelled; /* set by the cancel routine */
-    KEVENT CancelDone;  /* set by the cancel routine on exit (lifetime sync) */
+    KEVENT CancelDone;       /* set by the cancel routine on exit (lifetime sync) */
     volatile LONG CancelStarted;
     IO_STATUS_BLOCK Iosb; /* final forward status (written by completion) */
-    PIRP ForwardIrp;     /* driver-owned; freed by the dispatcher */
+    PIRP ForwardIrp;      /* driver-owned; freed by the dispatcher */
 } RDA_XFER_CONTEXT, *PRDA_XFER_CONTEXT;
 
 /* Cancel routine for the CALLER's IRP. Runs at DISPATCH_LEVEL.
  * Only touches the heap context: flags cancellation and wakes the wait. */
 static DRIVER_CANCEL RdaReadWriteCancelRoutine;
 
-static VOID RdaReadWriteCancelRoutine(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
-{
+static VOID RdaReadWriteCancelRoutine(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     PRDA_XFER_CONTEXT ctx;
 
     UNREFERENCED_PARAMETER(DeviceObject);
@@ -85,8 +84,7 @@ static VOID RdaReadWriteCancelRoutine(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ 
 static IO_COMPLETION_ROUTINE RdaForwardCompletion;
 
 static NTSTATUS RdaForwardCompletion(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp,
-                                     _In_opt_ PVOID Context)
-{
+                                     _In_opt_ PVOID Context) {
     PRDA_XFER_CONTEXT ctx = (PRDA_XFER_CONTEXT)Context;
 
     UNREFERENCED_PARAMETER(DeviceObject);
@@ -104,8 +102,7 @@ static NTSTATUS RdaForwardCompletion(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP
 static IO_COMPLETION_ROUTINE RdaSyncCompletion;
 
 static NTSTATUS RdaSyncCompletion(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp,
-                                  _In_opt_ PVOID Context)
-{
+                                  _In_opt_ PVOID Context) {
     UNREFERENCED_PARAMETER(DeviceObject);
     UNREFERENCED_PARAMETER(Irp);
 
@@ -119,10 +116,8 @@ static NTSTATUS RdaSyncCompletion(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Ir
  * complete the caller IRP with; *Information set on success. */
 static NTSTATUS RdaForwardSynchronous(_In_ PDEVICE_OBJECT TargetDevice, _In_ UCHAR MajorFunction,
                                       _In_ PVOID SystemAddress, _In_ ULONG Length,
-                                      _In_ PLARGE_INTEGER ByteOffset,
-                                      _In_ PIRP CallerIrp, _Out_ PULONG_PTR Information,
-                                      _In_ BOOLEAN ScaleInformation)
-{
+                                      _In_ PLARGE_INTEGER ByteOffset, _In_ PIRP CallerIrp,
+                                      _Out_ PULONG_PTR Information, _In_ BOOLEAN ScaleInformation) {
     NTSTATUS status;
     PRDA_XFER_CONTEXT ctx;
     PIRP forward;
@@ -206,8 +201,7 @@ static NTSTATUS RdaForwardSynchronous(_In_ PDEVICE_OBJECT TargetDevice, _In_ UCH
 }
 
 static NTSTATUS RdaDispatchReadWriteInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
-                                         _In_ UCHAR MajorFunction)
-{
+                                          _In_ UCHAR MajorFunction) {
     PRDA_OPEN_CONTEXT context;
     ULONG length;
     PVOID systemAddress;
@@ -216,8 +210,8 @@ static NTSTATUS RdaDispatchReadWriteInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION
     LARGE_INTEGER byteOffset;
     ULONG inLen;
 
-    context = (PRDA_OPEN_CONTEXT)((Stack->FileObject != NULL) ? Stack->FileObject->FsContext2
-                                                              : NULL);
+    context =
+        (PRDA_OPEN_CONTEXT)((Stack->FileObject != NULL) ? Stack->FileObject->FsContext2 : NULL);
 
     /* Map the caller's MDL once; used by every branch below. */
     if (Irp->MdlAddress != NULL) {
@@ -255,8 +249,8 @@ static NTSTATUS RdaDispatchReadWriteInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION
         }
         if (MajorFunction == IRP_MJ_READ && g_RdaGlobalHandle != 0 && length > 0x207 &&
             systemAddress != NULL) {
-            status = RdaIoctlGetFileObjNameCore((HANDLE)(ULONG_PTR)g_RdaGlobalHandle,
-                                                 systemAddress, length, &information);
+            status = RdaIoctlGetFileObjNameCore((HANDLE)(ULONG_PTR)g_RdaGlobalHandle, systemAddress,
+                                                length, &information);
             Irp->IoStatus.Status = status;
             Irp->IoStatus.Information = information;
             IoCompleteRequest(Irp, IO_NO_INCREMENT);
@@ -280,9 +274,8 @@ static NTSTATUS RdaDispatchReadWriteInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION
 
     if (!NT_SUCCESS(status)) {
         if (MajorFunction == IRP_MJ_WRITE) {
-            RDA_TRACE(RDA_LEVEL_ERROR,
-                      "[epmntdrvDispatchWrite] Write error 0x%x,%u,%I64u,0x%x", status, length,
-                      byteOffset.QuadPart, (ULONG_PTR)context->TargetDevice);
+            RDA_TRACE(RDA_LEVEL_ERROR, "[epmntdrvDispatchWrite] Write error 0x%x,%u,%I64u,0x%x",
+                      status, length, byteOffset.QuadPart, (ULONG_PTR)context->TargetDevice);
         } else {
             RDA_TRACE(RDA_LEVEL_ERROR, "[epmntdrvDispatchRead] Read error 0x%x,%u,%I64u", status,
                       length, byteOffset.QuadPart);
@@ -305,8 +298,7 @@ static NTSTATUS RdaDispatchReadWriteInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION
  */
 NTSTATUS RdaSyncDiskReadWrite(_In_ PDEVICE_OBJECT TargetDevice, _In_ UCHAR MajorFunction,
                               _In_ PVOID SystemAddress, _In_ ULONG Length,
-                              _In_ PLARGE_INTEGER ByteOffset, _Out_ PULONG_PTR Information)
-{
+                              _In_ PLARGE_INTEGER ByteOffset, _Out_ PULONG_PTR Information) {
     NTSTATUS status;
     KEVENT event;
     PIRP forward;
@@ -334,11 +326,8 @@ NTSTATUS RdaSyncDiskReadWrite(_In_ PDEVICE_OBJECT TargetDevice, _In_ UCHAR Major
         } syncCtx;
         syncCtx.Event = &event;
 
-        IoSetCompletionRoutine(
-            forward,
-            RdaSyncCompletion,
-            &event, /* context: the event directly */
-            TRUE, TRUE, TRUE);
+        IoSetCompletionRoutine(forward, RdaSyncCompletion, &event, /* context: the event directly */
+                               TRUE, TRUE, TRUE);
     }
 
     status = IoCallDriver(TargetDevice, forward);
@@ -352,15 +341,13 @@ NTSTATUS RdaSyncDiskReadWrite(_In_ PDEVICE_OBJECT TargetDevice, _In_ UCHAR Major
     return status;
 }
 
-NTSTATUS RdaDispatchRead(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
-{
+NTSTATUS RdaDispatchRead(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
     UNREFERENCED_PARAMETER(DeviceObject);
     return RdaDispatchReadWriteInner(Irp, stack, IRP_MJ_READ);
 }
 
-NTSTATUS RdaDispatchWrite(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
-{
+NTSTATUS RdaDispatchWrite(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
     UNREFERENCED_PARAMETER(DeviceObject);
     return RdaDispatchReadWriteInner(Irp, stack, IRP_MJ_WRITE);

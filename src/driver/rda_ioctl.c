@@ -35,14 +35,12 @@
 
 #include "rda_p.h"
 
-static BOOLEAN RdaIsSessionCode(_In_ ULONG Code, _Out_ PULONG CustomCode)
-{
+static BOOLEAN RdaIsSessionCode(_In_ ULONG Code, _Out_ PULONG CustomCode) {
     ULONG normalized;
 
     /* IoctlBase defaults to 0; the reference PE deployment sets 0x10000. */
     normalized = (ULONG)(Code - g_RdaParameters.IoctlBase);
-    if (normalized >= RDA_SESSION_CODE_GET_VERSION &&
-        normalized <= RDA_SESSION_CODE_CANCEL) {
+    if (normalized >= RDA_SESSION_CODE_GET_VERSION && normalized <= RDA_SESSION_CODE_CANCEL) {
         *CustomCode = normalized;
         return TRUE;
     }
@@ -50,8 +48,7 @@ static BOOLEAN RdaIsSessionCode(_In_ ULONG Code, _Out_ PULONG CustomCode)
 }
 
 /* Extended info output. */
-static NTSTATUS RdaIoctlGetInfoInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
-{
+static NTSTATUS RdaIoctlGetInfoInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack) {
     PRDA_DRIVER_INFO info;
     ULONG outLength = Stack->Parameters.DeviceIoControl.OutputBufferLength;
 
@@ -76,8 +73,7 @@ static NTSTATUS RdaIoctlGetInfoInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stac
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS RdaIoctlGetVersionInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack)
-{
+static NTSTATUS RdaIoctlGetVersionInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack) {
     ULONG outLength = Stack->Parameters.DeviceIoControl.OutputBufferLength;
 
     if (outLength < sizeof(ULONG64) || Irp->AssociatedIrp.SystemBuffer == NULL) {
@@ -93,8 +89,7 @@ static NTSTATUS RdaIoctlGetVersionInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION S
  * path-string grammar. Requires the PID-token to be absent by design: the
  * device DACL is the security boundary. */
 static NTSTATUS RdaIoctlOpenTargetInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
-                                        _In_opt_ PRDA_OPEN_CONTEXT CurrentContext)
-{
+                                        _In_opt_ PRDA_OPEN_CONTEXT CurrentContext) {
     PRDA_OPEN_TARGET_IN input;
     PRDA_OPEN_CONTEXT context;
     NTSTATUS status;
@@ -165,8 +160,7 @@ static NTSTATUS RdaIoctlOpenTargetInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION S
 }
 
 NTSTATUS RdaPassThroughIoctl(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
-                             _In_ PRDA_OPEN_CONTEXT Context)
-{
+                             _In_ PRDA_OPEN_CONTEXT Context) {
     NTSTATUS status;
     KEVENT event;
     PIRP forward;
@@ -208,9 +202,8 @@ NTSTATUS RdaPassThroughIoctl(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
     KeInitializeEvent(&event, NotificationEvent, FALSE);
     RtlZeroMemory(&iosb, sizeof(iosb));
 
-    forward = IoBuildDeviceIoControlRequest(code, top, Irp->AssociatedIrp.SystemBuffer,
-                                            inLength, outBuffer, outLength, FALSE, &event,
-                                            &iosb);
+    forward = IoBuildDeviceIoControlRequest(code, top, Irp->AssociatedIrp.SystemBuffer, inLength,
+                                            outBuffer, outLength, FALSE, &event, &iosb);
     if (forward == NULL) {
         ObDereferenceObject(top);
         return STATUS_INSUFFICIENT_RESOURCES;
@@ -227,8 +220,7 @@ NTSTATUS RdaPassThroughIoctl(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
     return status;
 }
 
-static NTSTATUS RdaDispatchDeviceControlInner(_In_ PIRP Irp)
-{
+static NTSTATUS RdaDispatchDeviceControlInner(_In_ PIRP Irp) {
     PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
     PRDA_OPEN_CONTEXT context = NULL;
     ULONG code = stack->Parameters.DeviceIoControl.IoControlCode;
@@ -270,8 +262,7 @@ static NTSTATUS RdaDispatchDeviceControlInner(_In_ PIRP Irp)
     }
 }
 
-NTSTATUS RdaDispatchDeviceControl(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
-{
+NTSTATUS RdaDispatchDeviceControl(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     NTSTATUS status;
 
     UNREFERENCED_PARAMETER(DeviceObject);

@@ -31,9 +31,7 @@ typedef struct _RDA_KEY_LOOKUP {
 } RDA_KEY_LOOKUP;
 
 /* Reads a DWORD from the Parameters subkey. Returns FALSE if absent/malformed. */
-static BOOLEAN RdaReadDword(_In_ HANDLE KeyHandle, _In_ PCWSTR ValueName,
-                            _Out_ PULONG Value)
-{
+static BOOLEAN RdaReadDword(_In_ HANDLE KeyHandle, _In_ PCWSTR ValueName, _Out_ PULONG Value) {
     NTSTATUS status;
     UCHAR buffer[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG)];
     ULONG length = 0;
@@ -41,8 +39,8 @@ static BOOLEAN RdaReadDword(_In_ HANDLE KeyHandle, _In_ PCWSTR ValueName,
     UNICODE_STRING name;
 
     RtlInitUnicodeString(&name, ValueName);
-    status = ZwQueryValueKey(KeyHandle, &name, KeyValuePartialInformation, info,
-                             sizeof(buffer), &length);
+    status = ZwQueryValueKey(KeyHandle, &name, KeyValuePartialInformation, info, sizeof(buffer),
+                             &length);
     if (!NT_SUCCESS(status)) {
         return FALSE;
     }
@@ -54,9 +52,8 @@ static BOOLEAN RdaReadDword(_In_ HANDLE KeyHandle, _In_ PCWSTR ValueName,
 }
 
 /* Reads a REG_SZ into a fixed WCHAR buffer (always NUL-terminated). */
-static BOOLEAN RdaReadString(_In_ HANDLE KeyHandle, _In_ PCWSTR ValueName,
-                             _Out_ PWSTR Buffer, _In_ ULONG BufferChars)
-{
+static BOOLEAN RdaReadString(_In_ HANDLE KeyHandle, _In_ PCWSTR ValueName, _Out_ PWSTR Buffer,
+                             _In_ ULONG BufferChars) {
     NTSTATUS status;
     UCHAR buffer[512];
     ULONG length = 0;
@@ -64,8 +61,8 @@ static BOOLEAN RdaReadString(_In_ HANDLE KeyHandle, _In_ PCWSTR ValueName,
     UNICODE_STRING name;
 
     RtlInitUnicodeString(&name, ValueName);
-    status = ZwQueryValueKey(KeyHandle, &name, KeyValuePartialInformation, info,
-                             sizeof(buffer), &length);
+    status = ZwQueryValueKey(KeyHandle, &name, KeyValuePartialInformation, info, sizeof(buffer),
+                             &length);
     if (!NT_SUCCESS(status)) {
         return FALSE;
     }
@@ -90,8 +87,7 @@ static BOOLEAN RdaReadString(_In_ HANDLE KeyHandle, _In_ PCWSTR ValueName,
     return TRUE;
 }
 
-NTSTATUS RdaReadParameters(_In_ PUNICODE_STRING RegistryPath)
-{
+NTSTATUS RdaReadParameters(_In_ PUNICODE_STRING RegistryPath) {
     NTSTATUS status;
     OBJECT_ATTRIBUTES attributes;
     HANDLE keyHandle = NULL;
@@ -101,7 +97,8 @@ NTSTATUS RdaReadParameters(_In_ PUNICODE_STRING RegistryPath)
 
     RDA_ENTER("ReadParameters");
 
-    if (RegistryPath == NULL || RegistryPath->Buffer == NULL || RegistryPath->Length < sizeof(WCHAR)) {
+    if (RegistryPath == NULL || RegistryPath->Buffer == NULL ||
+        RegistryPath->Length < sizeof(WCHAR)) {
         RDA_EXIT("ReadParameters");
         return STATUS_INVALID_PARAMETER;
     }
@@ -156,8 +153,7 @@ NTSTATUS RdaReadParameters(_In_ PUNICODE_STRING RegistryPath)
         }
         ZwClose(paramKey);
     } else {
-        RDA_TRACE(RDA_LEVEL_WARN, "Parameters subkey absent (defaults in effect) 0x%08X",
-                  status);
+        RDA_TRACE(RDA_LEVEL_WARN, "Parameters subkey absent (defaults in effect) 0x%08X", status);
     }
 
     ZwClose(keyHandle);
