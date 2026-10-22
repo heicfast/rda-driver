@@ -1,0 +1,31 @@
+; regdrv-rda.reg - WinPE deployment profile (EUDCPEPM/EPMNtDrv PE parity).
+;
+; Merge into the offline PE SOFTWARE/SYSTEM hive (or the running PE system)
+; before launching the recovery host. This registers:
+;   - rda as a demand-start kernel service (control device \Device\RDA)
+;   - the OPTIONAL disk-class UpperFilter role (comment out when not wanted)
+;
+; NOTE: FilterMode=1 + the UpperFilters value activate the EUDCPEPM-style
+; copy-filter role on every disk device in the PE.
+
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\rda]
+"Type"=dword:00000001
+"Start"=dword:00000003
+"ErrorControl"=dword:00000001
+"Group"="Boot File System"
+"ImagePath"="\\SystemRoot\\System32\\drivers\\rda.sys"
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\rda\Parameters]
+"IoctlBase"=dword:00010000
+"MaxDisks"=dword:000000c8
+"DebugLevel"=dword:00000001
+"SessionsEnabled"=dword:00000001
+"FilterMode"=dword:00000001
+"VolSnapAttach"=dword:00000000
+
+; Disk-class upper filter (GUID_DEVCLASS_DISKDRIVE) - the documented
+; mechanism replacing EUDCPEPM's AddDevice patching (fix F6).
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e967-e325-11ce-bfc1-08002be10318}]
+"UpperFilters"=hex(7):r,d,a,\,0

@@ -1,0 +1,85 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build release artifacts (WDK 26100.6584)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: nuget/setup-nuget@v2
+      - run: nuget restore .\packages.config -PackagesDirectory .\packages\
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build (Release, x64)
+        run: msbuild .\rda.sln -m -v:minimal -nologo -p:Configuration=Release -p:Platform=x64
+
+      - name: PE gate
+        shell: pwsh
+        run: python tools\verify_pe.py bin\x64\Release\rda.sys
+
+      - name: Assert unsigned artifact
+        shell: pwsh
+        run: |
+          $bytes = [IO.File]::ReadAllBytes("bin\x64\Release\rda.sys")
+          $lfanew = [BitConverter]::ToUInt32($bytes, 0x3C)
+          $secDirRva = [BitConverter]::ToUInt32($bytes, $lfanew + 0x18 + 112 + 32)
+          if ($secDirRva -ne 0) { Write-Error "unexpected signature"; exit 1 }
+          Write-Host "unsigned as intended"
+
+      - name: Stage release bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item bin\x64\Release\rda.sys dist\
+          Copy-Item bin\x64\Release\rdacli.exe dist\
+          Copy-Item src\driver\rda.inf dist\
+          Copy-Item scripts\install.ps1, scripts\uninstall.ps1, scripts\run-integration.ps1 dist\scripts\
+          Copy-Item LICENSE, README.md, docs\signing.md, docs\testing.md, docs\win7-compat.md dist\
+
+      - name: Compute checksums (SHA-256)
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -Recurse -File | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            $rel = $_.FullName.Substring((Resolve-Path dist).Path.Length + 1)
+            "$hash  $rel"
+          } | Set-Content dist\SHA256SUMS
+          Get-Content dist\SHA256SUMS
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rda-release-${{ github.ref_name }}
+          path: dist
+          if-no-files-found: error
+
+      - name: Attach to GitHub release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/rda.sys
+            dist/rdacli.exe
+            dist/rda.inf
+            dist/SHA256SUMS
+            dist/scripts/*
+          generate_release_notes: true
+          body: |
+            RDA Raw Disk Access Driver - ${{ github.ref_name }}
+
+            Unsigned build. Windows kernel-mode code signing applies before
+            production deployment - see docs/signing.md (the OSSign pipeline
+            is prepared but DISABLED until certificate onboarding completes).
+
+            Win7 SP1 -> Win11 x64, single binary. Verified by the CI PE gate
+            (import allowlist + OS 6.1 header contract).

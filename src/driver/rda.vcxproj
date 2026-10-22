@@ -29,6 +29,12 @@
     <ProjectGuid>{8E4B7C2A-19D3-4F6E-9A57-0C1E2D3B4A55}</ProjectGuid>
     <RootNamespace>rda</RootNamespace>
     <ProjectName>rda</ProjectName>
+    <!-- Pin the target platform to the NuGet-restored WDK/SDK build so the
+         toolset computes tool paths (stampinf et al.) inside the pinned
+         package (WDKBinRoot = WdkContentRoot\bin\10.0.26100.0). Without
+         this, the machine's installed SDK version leaks in and tools go
+         missing (TRK0005). -->
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
 
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -69,7 +75,7 @@
       <ExceptionHandling>false</ExceptionHandling>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <ControlFlowGuard>false</ControlFlowGuard>
-      <ExternalIncludePath>$(ExternalIncludePath);$(SolutionDir)src\shared\inc</ExternalIncludePath>
+      <AdditionalIncludeDirectories>$(SolutionDir)src\shared\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/external:W0 %(AdditionalOptions)</AdditionalOptions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
