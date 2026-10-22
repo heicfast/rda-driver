@@ -1,0 +1,237 @@
+name: benchmark
+
+# Real-world benchmark matrix: our merged driver vs the ORIGINAL reference
+# binaries, side by side, on a seeded disk with realistic multi-format file
+# content. Records cold-start latency, sequential/random throughput, open
+# churn, contract probes, cross-driver byte-equality (SHA-256 over sampled
+# ranges), and a hostile-input fuzz hammer - everything as JSON + a markdown
+# comparison table.
+#
+# The reference binaries are fetched at RUN time from the research corpus
+# (never committed to this repository). eprdtdrv.sys is Microsoft
+# WHQL-counter-signed and loads on stock Windows; our driver is test-signed
+# with a job-local self-signed certificate (SecureBoot is off on hosted
+# runners, so the classic test-certificate flow applies: root +
+# trusted-publishers import, no testsigning reboot needed).
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - ".github/workflows/benchmark.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: windows-2022
+    timeout-minutes: 75
+    env:
+      WDK_VERSION: "10.0.26100.6584" # matches ci.yml (VS2022-compatible tasks)
+      RESEARCH_RAW: "https://raw.githubusercontent.com/heicfast/easeus-drw-research/main"
+      VHD_PATH: "D:\\rda-bench-disk.vhdx"
+      SEED_MB: "4096"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore WDK (NuGet)
+        run: |
+          nuget install Microsoft.Windows.WDK.x64 -Version $env:WDK_VERSION -OutputDirectory packages -NonInteractive
+          $pkg = Get-ChildItem packages/Microsoft.Windows.WDK.x64*/build -Directory | Select-Object -First 1
+          "WDKPACK=$($pkg.FullName)" | Out-File -Append $env:GITHUB_ENV -Encoding utf8
+
+      - name: Build (Release)
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          Import-Module (Join-Path $vs "Common7\Tools\Microsoft.VisualStudio.DevShell.dll")
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments "-arch=x64 -host_arch=x64"
+          msbuild .\rda.sln -m -v:minimal -nologo -p:Configuration=Release -p:Platform=x64
+          Get-ChildItem bin\x64\Release | Format-Table Name,Length
+
+      - name: Fetch reference drivers (run-time only, never committed)
+        run: |
+          New-Item -ItemType Directory -Force drivers-ref | Out-Null
+          $files = @(
+            "og-codebase/PartitionRecovery/eprdtdrv.sys",
+            "og-codebase/BUILDPE/x64/Windows/system32/drivers/EUEDKEPM.sys",
+            "og-codebase/BUILDPE/x64/Windows/system32/drivers/EUDCPEPM.sys"
+          )
+          foreach ($f in $files) {
+            $name = Split-Path $f -Leaf
+            Invoke-WebRequest "$env:RESEARCH_RAW/$f" -OutFile "drivers-ref\$name"
+            Get-FileHash "drivers-ref\$name" -Algorithm SHA256 | Format-List
+          }
+
+      - name: Test-sign rda.sys (job-local certificate)
+        run: |
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=RDA-BENCH-TEST" `
+            -KeyExportPolicy Exportable -NotAfter (Get-Date).AddDays(2) -CertStoreLocation Cert:\LocalMachine\My
+          $pwd2 = ConvertTo-SecureString -String "rda-bench" -Force -AsPlainText
+          Export-Certificate -Cert $cert -FilePath rda-test.cer | Out-Null
+          Export-PfxCertificate -Cert $cert -FilePath rda-test.pfx -Password $pwd2 | Out-Null
+          Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $signtool = Get-ChildItem "$vs\Common7\IDE\VC\Tools\MSVC\*\bin\Hostx64\x64\signtool.exe" | Select-Object -First 1 -ExpandProperty FullName
+          & $signtool sign /fd SHA256 /f rda-test.pfx /p rda-bench /tr http://timestamp.digicert.com `
+            bin\x64\Release\rda.sys
+          if ($LASTEXITCODE -ne 0) { & $signtool sign /fd SHA256 /f rda-test.pfx /p rda-bench bin\x64\Release\rda.sys }
+          & $signtool verify /pa /v bin\x64\Release\rda.sys
+          "SIGN_OK=$($LASTEXITCODE -eq 0)" | Out-File -Append $env:GITHUB_ENV -Encoding utf8
+
+      - name: Create and seed benchmark disk
+        run: |
+          # 4 GiB dynamic VHDX, GPT, two volumes (NTFS + FAT32), realistic
+          # multi-format corpus: JPEG/PDF/ZIP/DOCX/MP4/TXT + many small files.
+          $vhd = New-VHD -Path $env:VHD_PATH -SizeBytes ([int]$env:SEED_MB * 1MB) -Dynamic
+          $disk = Mount-VHD -Path $env:VHD_PATH -PassThru | Get-Disk
+          "DISKNUM=$($disk.Number)" | Out-File -Append $env:GITHUB_ENV -Encoding utf8
+          Initialize-Disk -Number $disk.Number -PartitionStyle GPT
+          $p1 = New-Partition -DiskNumber $disk.Number -Size 3GB -AssignDriveLetter
+          $p2 = New-Partition -DiskNumber $disk.Number -UseMaximumSize -AssignDriveLetter
+          $v1 = Format-Volume -Partition $p1 -FileSystem NTFS -NewFileSystemLabel RDA-NTFS -Confirm:$false
+          $v2 = Format-Volume -Partition $p2 -FileSystem FAT32 -NewFileSystemLabel RDA-FAT32 -Confirm:$false
+          $letter1 = (Get-Partition -DiskNumber $disk.Number | Select-Object -First 1).DriveLetter
+          $letter2 = (Get-Partition -DiskNumber $disk.Number | Select-Object -Skip 1 -First 1).DriveLetter
+
+          function New-SeedFile($path, $header, $size, $tail) {
+            $fs = [System.IO.File]::OpenWrite($path)
+            $bytes = New-Object byte[] $size
+            (New-Object System.Random 1234567).NextBytes($bytes)
+            if ($header) { $fs.Write($header, 0, $header.Length) }
+            $fs.Write($bytes, 0, $bytes.Length)
+            if ($tail) { $fs.Write($tail, 0, $tail.Length) }
+            $fs.Close()
+          }
+
+          $root = "$letter1`:\seed"
+          New-Item -ItemType Directory -Force $root | Out-Null
+          # JPEG (real header/trailer + random payload)
+          New-SeedFile "$root\photo1.jpg" ([byte[]](0xFF,0xD8,0xFF,0xE0,0,0x10,0x4A,0x46,0x49,0x46,0,1)) (4MB) ([byte[]](0xFF,0xD9))
+          New-SeedFile "$root\photo2.jpg" ([byte[]](0xFF,0xD8,0xFF,0xE1)) (1MB) ([byte[]](0xFF,0xD9))
+          # PDF
+          $pdfHeader = [System.Text.Encoding]::ASCII.GetBytes("%PDF-1.4`n1 0 obj<</Type/Catalog>>endobj`ntrailer<<>>")
+          New-SeedFile "$root\doc.pdf" $pdfHeader (8MB) ([System.Text.Encoding]::ASCII.GetBytes("%%EOF"))
+          # MP4 (ftyp box)
+          New-SeedFile "$root\clip.mp4" ([byte[]](0,0,0,0x18,0x66,0x74,0x79,0x70,0x69,0x73,0x6F,0x6D)) (48MB) $null
+          # ZIP via real compression (realistic entropy)
+          $zipBytes = New-Object byte[] (2MB); (New-Object System.Random 7654321).NextBytes($zipBytes)
+          [System.IO.File]::WriteAllBytes("$env:TEMP\z.bin", $zipBytes)
+          Compress-Archive "$env:TEMP\z.bin" "$root\archive.zip" -Force
+          # Text corpus
+          $txt = New-Object System.Text.StringBuilder
+          1..20000 | ForEach-Object { [void]$txt.AppendLine("line $_ lorem ipsum dolor sit amet $_ data content") }
+          [System.IO.File]::WriteAllText("$root\log.txt", $txt.ToString())
+          # Many small files (metadata + allocation realism)
+          $small = "$root\many"
+          New-Item -ItemType Directory -Force $small | Out-Null
+          1..1000 | ForEach-Object {
+            $b = New-Object byte[] (4KB); (New-Object System.Random $_).NextBytes($b)
+            [System.IO.File]::WriteAllBytes("$small\f$_.bin", $b)
+          }
+          # Usable-region patterns differ from empty space; force metadata flush
+          Write-VolumeCache $letter1":" | Out-Null
+          Write-VolumeCache $letter2":" | Out-Null
+          Get-ChildItem $root -Recurse | Measure-Object -Sum Length | ForEach-Object {
+            "seeded files bytes: $($_.Sum)"
+          }
+
+      - name: Install and start drivers
+        run: |
+          $d = Get-Location
+          # Reference driver (WHQL Microsoft-counter-signed - loads everywhere)
+          Copy-Item drivers-ref\eprdtdrv.sys "C:\Windows\System32\drivers\eprdtdrv.sys" -Force
+          sc.exe create eprdtdrv type= kernel start= demand binPath= "System32\drivers\eprdtdrv.sys" group= "FSFilter Boot File System"
+          sc.exe start eprdtdrv
+          $refStart = $LASTEXITCODE
+          # Our merged driver under a different service name -> different
+          # device name (service-name-derived identity).
+          Copy-Item bin\x64\Release\rda.sys "C:\Windows\System32\drivers\rdatest.sys" -Force
+          sc.exe create rdatest type= kernel start= demand binPath= "System32\drivers\rdatest.sys" group= "FSFilter Boot File System"
+          sc.exe start rdatest
+          $rdaStart = $LASTEXITCODE
+          "REF_START=$refStart RDA_START=$rdaStart"
+          if ($rdaStart -ne 0) {
+            # Record WHY (signature policy verdicts) and continue: the
+            # original-only results still land; the report shows the gap.
+            sc.exe query rdatest
+            Get-EventLog -LogName System -Newest 20 | Where-Object { $_.Message -match "rdatest|driver" } | Select-Object -First 10
+          }
+
+      - name: Bench - contract probes + cold open + throughput (both drivers)
+        run: |
+          $disk = [int]$env:DISKNUM
+          $bench = "bin\x64\Release\rdabench.exe"
+          New-Item -ItemType Directory -Force bench-results | Out-Null
+          $drivers = @()
+          if ((sc.exe query eprdtdrv) -match "RUNNING") { $drivers += "EPRDTDRV" }
+          if ((sc.exe query rdatest) -match "RUNNING") { $drivers += "RDATEST" }
+          "drivers under test: $($drivers -join ', ') disk=$disk"
+          foreach ($dev in $drivers) {
+            & $bench --device $dev --disk $disk --mode info --run "$dev-info" >> bench-results\results.jsonl
+            & $bench --device $dev --disk $disk --mode open --iterations 2000 --run "$dev-open" >> bench-results\results.jsonl
+            & $bench --device $dev --disk $disk --mode seq --mb 512 --block-kb 1024 --run "$dev-seq-1m" >> bench-results\results.jsonl
+            & $bench --device $dev --disk $disk --mode seq --mb 256 --block-kb 64 --run "$dev-seq-64k" >> bench-results\results.jsonl
+            & $bench --device $dev --disk $disk --mode rand --mb 512 --block-kb 4 --iterations 2000 --seed 4242 --run "$dev-rand-4k" >> bench-results\results.jsonl
+            & $bench --device $dev --disk $disk --mode rand --mb 512 --block-kb 64 --iterations 2000 --seed 1717 --run "$dev-rand-64k" >> bench-results\results.jsonl
+            & $bench --device $dev --disk $disk --mode verify --mb 64 --run "$dev-verify" >> bench-results\results.jsonl
+            & $bench --device $dev --disk $disk --mode fuzz --iterations 50000 --seed 98765 --run "$dev-fuzz" >> bench-results\results.jsonl
+          }
+          Get-Content bench-results\results.jsonl
+
+      - name: Build comparison report
+        run: |
+          $lines = Get-Content bench-results\results.jsonl | ForEach-Object { $_ | ConvertFrom-Json }
+          $summary = "## Driver benchmark comparison`n`n"
+          $summary += "Reference: eprdtdrv.sys (original binary). Ours: rda.sys (merged rewrite). Disk: seeded 4 GiB VHDX.`n`n"
+          $metrics = $lines | Where-Object { $_.mode -ne "verify" }
+          $summary += ($metrics | Sort-Object mode, metric, driver |
+            Format-Table mode, metric, driver, value -AutoSize | Out-String)
+          # Cross-driver byte-equality (verify mode)
+          $verify = @{}
+          foreach ($l in $lines | Where-Object { $_.mode -eq "verify" }) {
+            $verify["$($l.block)"] = @{ }
+          }
+          $verify = @{}
+          foreach ($l in $lines | Where-Object { $_.mode -eq "verify" }) {
+            if (-not $verify.ContainsKey([string]$l.block)) { $verify[[string]$l.block] = @{} }
+            $verify[[string]$l.block][$l.driver] = $l.sha256
+          }
+          $mismatch = 0; $compared = 0
+          foreach ($k in $verify.Keys) {
+            if ($verify[$k].Count -ge 2) {
+              $compared++
+              $vals = $verify[$k].Values | Select-Object -Unique
+              if ($vals.Count -gt 1) { $mismatch++ }
+            }
+          }
+          $summary += "`n**Cross-driver byte equality**: $compared compared ranges, $mismatch mismatches (0 expected).`n`n"
+          # Fuzz survival
+          $fuzz = $lines | Where-Object { $_.mode -eq "fuzz" }
+          $summary += ($fuzz | Format-Table driver, metric, value -AutoSize | Out-String)
+          Add-Content $env:GITHUB_STEP_SUMMARY $summary
+          $summary | Out-File bench-results\summary.md -Encoding utf8
+          if ($mismatch -gt 0) { Write-Error "cross-driver content mismatch"; exit 1 }
+
+      - name: Stop and clean drivers
+        if: always()
+        run: |
+          sc.exe stop rdatest 2>$null
+          sc.exe delete rdatest 2>$null
+          sc.exe stop eprdtdrv 2>$null
+          sc.exe delete eprdtdrv 2>$null
+          Dismount-VHD -Path $env:VHD_PATH 2>$null
+          Remove-Item $env:VHD_PATH -Force 2>$null
+          Import-Certificate -ErrorAction SilentlyContinue | Out-Null
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            bench-results/**
+          retention-days: 30

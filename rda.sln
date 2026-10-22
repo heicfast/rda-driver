@@ -6,6 +6,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rda", "src\driver\rda.vcxpr
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rdacli", "src\client\rdacli.vcxproj", "{3F1A9B5C-7D2E-4A8B-9C6D-1E0F2A3B4C66}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "rdabench", "src\bench\rdabench.vcxproj", "{AC986675-F91A-467C-B4DB-372948F101B2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -20,6 +22,10 @@ Global
 		{3F1A9B5C-7D2E-4A8B-9C6D-1E0F2A3B4C66}.Debug|x64.Build.0 = Debug|x64
 		{3F1A9B5C-7D2E-4A8B-9C6D-1E0F2A3B4C66}.Release|x64.ActiveCfg = Release|x64
 		{3F1A9B5C-7D2E-4A8B-9C6D-1E0F2A3B4C66}.Release|x64.Build.0 = Release|x64
+{AC986675-F91A-467C-B4DB-372948F101B2}.Debug|x64.ActiveCfg = Debug|x64
+{AC986675-F91A-467C-B4DB-372948F101B2}.Debug|x64.Build.0 = Debug|x64
+{AC986675-F91A-467C-B4DB-372948F101B2}.Release|x64.ActiveCfg = Release|x64
+{AC986675-F91A-467C-B4DB-372948F101B2}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

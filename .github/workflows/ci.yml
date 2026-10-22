@@ -45,6 +45,29 @@ jobs:
           sudo apt-get install -y -qq gcc > /dev/null
           scripts/run-unit-tests.sh
 
+  # ------------------------------------------------------------------ fuzz --
+  fuzz:
+    name: fuzz (grammar + logic, ASan/UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: libFuzzer round (open grammar, parser, token transform)
+        run: |
+          # ubuntu-latest ships clang-18; select it and run a bounded round
+          # against the portable logic the kernel executes in IRP_MJ_CREATE.
+          export CC=clang-18
+          make -C fuzz fuzz
+          make -C fuzz run
+
+      - name: invariant selftest (gcc fallback path, also run always)
+        run: |
+          make -C fuzz selftest
+
+      - name: unit tests under ASan/UBSan
+        run: |
+          make -C fuzz unit
+
   # ------------------------------------------------------------------ unit --
   unit:
     name: unit tests (${{ matrix.os }})
