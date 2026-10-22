@@ -1,0 +1,18 @@
+# RDA C code style - LLVM-derived, kernel-friendly
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: cpp17
+IndentWidth: 4
+ColumnLimit: 100
+UseTab: Never
+AccessModifierOffset: -4
+PointerAlignment: Right
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLoopsOnASingleLine: false
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+AlignConsecutiveMacros: true
+AlignConsecutiveAssignments: false
+SpaceAfterCStyleCast: false
+KeepEmptyLinesAtTheStartOfBlock: false

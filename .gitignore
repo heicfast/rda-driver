@@ -1,0 +1,39 @@
+# Build outputs
+bin/
+obj/
+x64/
+Win32/
+packages/
+dist/
+build/
+out/
+_logs/
+
+# Visual Studio / msbuild
+.vs/
+*.user
+*.suo
+*.aps
+*.log
+*.tlog
+*.ipdb
+*.iobj
+*.pdbx
+*.VC.db
+*.VC.opendb
+msbuild.binlog
+
+# Driver verifier / test artifacts
+*.dmp
+*.traces
+*.etl
+
+# OS junk
+Thumbs.db
+.DS_Store
+
+# Secrets - never commit
+*.pfx
+*.key
+*.pem
+.env
