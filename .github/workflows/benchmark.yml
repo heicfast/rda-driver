@@ -94,10 +94,8 @@ jobs:
           # 4 GiB FIXED VHD, GPT, two volumes (NTFS + FAT32), realistic
           # multi-format corpus: JPEG/PDF/ZIP/DOCX/MP4/TXT + many small files.
           # diskpart (no Hyper-V module dependency - hosted runners vary).
-          $script = @(
-            "create vdisk file=\"$env:VHD_PATH\" type=fixed maximum=$env:SEED_MB",
-            "attach vdisk"
-          ) -join "`n"
+          $line1 = 'create vdisk file="{0}" type=fixed maximum={1}' -f $env:VHD_PATH, $env:SEED_MB
+          $script = $line1 + "`n" + 'attach vdisk'
           $script | Out-File -Encoding ascii seed-vhd.txt
           diskpart /s seed-vhd.txt
           if ($LASTEXITCODE -ne 0) { throw "diskpart create/attach failed" }
@@ -241,7 +239,8 @@ jobs:
           sc.exe delete rdatest
           sc.exe stop eprdtdrv
           sc.exe delete eprdtdrv
-          "select vdisk file=\"$env:VHD_PATH\"`ndetach vdisk" | Out-File -Encoding ascii detach.txt
+          $sel = 'select vdisk file="{0}"' -f $env:VHD_PATH
+          ($sel + "`n" + 'detach vdisk') | Out-File -Encoding ascii detach.txt
           diskpart /s detach.txt
           Remove-Item $env:VHD_PATH -Force
           Remove-Item "C:\Windows\System32\drivers\rdatest.sys","C:\Windows\System32\drivers\eprdtdrv.sys" -Force -ErrorAction SilentlyContinue
