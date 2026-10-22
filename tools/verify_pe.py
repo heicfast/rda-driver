@@ -95,8 +95,6 @@ ALLOWLIST_ADDITIONS = {
     # exports exist since Windows 2000.
     "IoReleaseCancelSpinLock": "cancel-routine protocol (S1/S2)",
     "KeGetCurrentIrql": "IRQL guard on the filter session-liveness probe",
-    "KeGetCurrentIrql": "IRQL guard for the dispatch-safe session-liveness probe
-        (filter TRIM/write paths - exported since Windows 2000)",
 }
 
 EXPECTED_MACHINE = 0x8664
