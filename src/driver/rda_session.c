@@ -147,8 +147,7 @@ static VOID RdaSessionFreeSlot(_In_ PRDA_SESSION Session) {
 
 /* Reference-verified overlap guard: same disk + overlapping sector range. */
 static BOOLEAN RdaSessionOverlapsExisting(_In_ ULONG DiskId, _In_ ULONG64 StartSec,
-                                          _In_ ULONG64 LengthSecs,
-                                          _In_opt_ PRDA_OPEN_SESSION Self) {
+                                          _In_ ULONG64 LengthSecs) {
     ULONG i;
     BOOLEAN overlaps = FALSE;
 
@@ -381,7 +380,7 @@ static NTSTATUS RdaSessionOpen(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack) {
     }
 
     /* Overlap guard (reference-verified: STATUS_SHARING_VIOLATION). */
-    if (RdaSessionOverlapsExisting(in->DiskId, in->DataFirstSec, in->TotalSecs, in)) {
+    if (RdaSessionOverlapsExisting(in->DiskId, in->DataFirstSec, in->TotalSecs)) {
         return STATUS_SHARING_VIOLATION;
     }
 
@@ -548,7 +547,6 @@ static NTSTATUS RdaSessionGetNextBlock(_In_ PRDA_SESSION Session, _In_ PIRP Irp,
     NTSTATUS status;
     ULONG inLength = Stack->Parameters.DeviceIoControl.InputBufferLength;
     PRDA_PUMP_NODE node;
-    PIRP oldRoutine;
 
     if (inLength < RDA_SESSION_GETNEXTBLOCK_MIN_IN) {
         return STATUS_BUFFER_TOO_SMALL;
@@ -656,7 +654,6 @@ NTSTATUS RdaSessionDispatch(_In_ ULONG CustomCode, _In_ PIRP Irp, _In_ PIO_STACK
     ULONG inLength = Stack->Parameters.DeviceIoControl.InputBufferLength;
     ULONG outLength = Stack->Parameters.DeviceIoControl.OutputBufferLength;
     PVOID buffer = Irp->AssociatedIrp.SystemBuffer;
-    NTSTATUS status;
 
     UNREFERENCED_PARAMETER(Context);
 
