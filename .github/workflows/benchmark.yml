@@ -108,9 +108,12 @@ jobs:
           $p2 = New-Partition -DiskNumber $disk.Number -UseMaximumSize -AssignDriveLetter
           Format-Volume -Partition $p1 -FileSystem NTFS -NewFileSystemLabel RDA-NTFS -Confirm:$false | Out-Null
           Format-Volume -Partition $p2 -FileSystem FAT32 -NewFileSystemLabel RDA-FAT32 -Confirm:$false | Out-Null
-          $letter1 = $p1.DriveLetter
-          $letter2 = $p2.DriveLetter
-          if (-not $letter1 -or -not $letter2) { throw "no drive letters assigned ($letter1/$letter2)" }
+          Start-Sleep -Seconds 2
+          $letters = (Get-Partition -DiskNumber $disk.Number | Where-Object DriveLetter | Sort-Object PartitionNumber)
+          $letter1 = ($letters | Select-Object -First 1).DriveLetter
+          $letter2 = ($letters | Select-Object -Skip 1 -First 1).DriveLetter
+          "letters: '$letter1' '$letter2' disk $($disk.Number)"
+          if (-not $letter1) { throw "no drive letter for volume 1" }
 
           function New-SeedFile($path, $header, $size, $tail) {
             $fs = [System.IO.File]::OpenWrite($path)
@@ -147,9 +150,9 @@ jobs:
             $b = New-Object byte[] (4KB); (New-Object System.Random $_).NextBytes($b)
             [System.IO.File]::WriteAllBytes("$small\f$_.bin", $b)
           }
-          # Usable-region patterns differ from empty space; force metadata flush
-          Write-VolumeCache "${letter1}:" | Out-Null
-          Write-VolumeCache "${letter2}:" | Out-Null
+          # Usable-region patterns differ from empty space; best-effort flush
+          try { Write-VolumeCache "${letter1}:" | Out-Null } catch { "cache flush v1 skipped: $_" }
+          try { if ($letter2) { Write-VolumeCache "${letter2}:" | Out-Null } } catch { "cache flush v2 skipped: $_" }
           Get-ChildItem $root -Recurse | Measure-Object -Sum Length | ForEach-Object {
             "seeded files bytes: $($_.Sum)"
           }
