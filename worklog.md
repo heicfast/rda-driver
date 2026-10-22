@@ -29,3 +29,39 @@ detailed commit messages; this file is the human-readable narrative.
   parser edge cases, classifier volume/disk/global/reject matrix, volume-gate
   boundary, IOCTL table freeze. Portable: gcc C11 u"" literals / MSVC L"".
 - Verified green on gcc -Wall -Wextra -Werror (Ubuntu). MSVC parity via CI next.
+
+## Session 1 (cont.) - CI green end-to-end
+
+Bring-up iterations on the windows-2022 WDK NuGet toolchain (each found by the
+CI itself, fixed at the root cause):
+
+1. clang-format `Standard: cpp17` invalid -> `c++17`; unstable keys dropped;
+   then `SortIncludes: Never` after the include-order landmine (below).
+2. Unit-test harness: C4127 suppression (do{}while macro idiom), bin dir.
+3. WDK NuGet plumbing: `WindowsTargetPlatformVersion` pinned to the package
+   build (TRK0005 stampinf), INF moved out of the Inf item group (no INF
+   tooling in build; shipped verbatim), shared headers via
+   AdditionalIncludeDirectories.
+4. THE BIG ONE: wdm.h, included first, DEFINES _NTDDK_ - silently neutering
+   the later ntddk.h (every DDK-level declaration vanished -> C4013 batch).
+   Root cause: clang-format SortIncludes had moved rda_trace.h's wdm.h ahead
+   of ntddk.h. Fix: ntifs.h is the canonical base header in rda_p.h
+   (ntddk -> wdm order guaranteed, plus the ntifs APIs this driver uses);
+   rda_trace.h no longer includes wdm.h; SortIncludes: Never forever.
+5. Kernel-C corrections: PBYTE->PUCHAR, LONG_MAX->0x7FFFFFFF, ntdddisk.h for
+   DISK_GEOMETRY, W4 residuals (unused params/locals), /W4 C4391 header
+   suppression (documented), DriverTargetPlatform=Desktop (ApiValidator is a
+   Universal/DDI regime - not applicable to a WDM raw-storage driver).
+6. Win7 PE contract: the WDK toolset links OS=(10,0) regardless of linker
+   flags -> tools/stamp_osversion.py stamps (6,1)/NATIVE + recomputes the
+   checksum, wired into CI+release before the gate.
+7. Import gate: extended the audited additions with wdmsec.lib's full
+   XP-era SD/security import closure (each entry justified in
+   tools/verify_pe.py).
+
+FINAL STATE: full CI green - lint (gcc unit tests + clang-format),
+unit (MSVC /W4 /WX), build Debug+Release (rda.sys + rdacli, /W4 /WX,
+PE gate, unsigned assertion, artifacts), codeql.
+
+Next: release tag pipeline validation, VM/host test matrix, OSSign
+onboarding (disabled by design until certificate approval).
