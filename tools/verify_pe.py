@@ -90,6 +90,12 @@ ALLOWLIST_ADDITIONS = {
     "PoStartNextPowerIrp": "Win7 power protocol (filter role)",
     "ProbeForRead": "user exclusion-bitmap probe (EUDCPEPM StartBackup)",
     "IoCreateFile": "object-namespace open fallback (wdmsec/header chain)",
+    # Session-2 security fixes:
+    "IoReleaseCancelSpinLock": "cancel-routine protocol (S1/S2: the reference cancel
+        paths rely on the IO manager; our cancellable forwards release the global
+        cancel spinlock per WDM contract - exported since Windows 2000)",
+    "KeGetCurrentIrql": "IRQL guard for the dispatch-safe session-liveness probe
+        (filter TRIM/write paths - exported since Windows 2000)",
 }
 
 EXPECTED_MACHINE = 0x8664
