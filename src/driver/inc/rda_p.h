@@ -224,8 +224,7 @@ _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
 
 /* Destroy every session owned by the given process (control-device
  * CLEANUP/CLOSE sweep - reference FUN_00012aa0). */
-_IRQL_requires_max_(PASSIVE_LEVEL) VOID
-    RdaSessionSweepByProcess(_In_ PEPROCESS Process);
+_IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaSessionSweepByProcess(_In_ PEPROCESS Process);
 
 /* Destroy every session bound to the given disk (filter REMOVE path -
  * reference FUN_0001324c). */
@@ -265,9 +264,9 @@ _IRQL_requires_max_(PASSIVE_LEVEL) RDA_WRITE_INTERCEPT
 typedef struct _RDA_DISK_TARGET {
     LIST_ENTRY Link;
     ULONG DiskId;
-    ULONG SectorSize;         /* probed logical sector size */
-    PDEVICE_OBJECT Target;    /* referenced disk-class layer */
-    PFILE_OBJECT FileObject;  /* referenced (IoGetDeviceObjectPointer) */
+    ULONG SectorSize;        /* probed logical sector size */
+    PDEVICE_OBJECT Target;   /* referenced disk-class layer */
+    PFILE_OBJECT FileObject; /* referenced (IoGetDeviceObjectPointer) */
 } RDA_DISK_TARGET, *PRDA_DISK_TARGET;
 
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
@@ -280,8 +279,8 @@ _IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaDiskCacheRemoveDisk(_In_ ULONG DiskId
 /* Sector IO against a cached disk target (LBA -> byte offset internally). */
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
     RdaDiskReadWriteSectors(_In_ PRDA_DISK_TARGET Disk, _In_ UCHAR MajorFunction,
-                           _In_ PVOID SystemAddress, _In_ ULONG64 StartLba, _In_ ULONG SectorCount,
-                           _Out_opt_ PULONG_PTR Information);
+                            _In_ PVOID SystemAddress, _In_ ULONG64 StartLba, _In_ ULONG SectorCount,
+                            _Out_opt_ PULONG_PTR Information);
 
 /* ---------------------------------------------------------------------------
  * rda_filter.c - PnP disk-class upper-filter role

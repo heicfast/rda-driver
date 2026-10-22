@@ -945,7 +945,6 @@ static NTSTATUS RdaSessionStartBackup(_In_ PRDA_SESSION Session, _In_ PIRP Irp,
                                       _In_ PIO_STACK_LOCATION Stack) {
     PRDA_STARTBACKUP_IN in = (PRDA_STARTBACKUP_IN)Irp->AssociatedIrp.SystemBuffer;
     ULONG inLength = Stack->Parameters.DeviceIoControl.InputBufferLength;
-    NTSTATUS status;
     LONG state;
     ULONG64 planSectors;
     SIZE_T skipBytes;
@@ -1302,7 +1301,6 @@ RDA_WRITE_INTERCEPT RdaSessionInterceptWrite(_In_ ULONG DiskId, _In_ PIRP Irp,
     PRDA_SESSION target = NULL;
     PRDA_PUMP_NODE node;
     LONG state;
-    RDA_WRITE_INTERCEPT result = RdaWriteForward;
 
     ExAcquireFastMutex(&g_RdaSessionTableLock);
     for (i = 0; i < RDA_SESSION_TABLE_SIZE; i++) {

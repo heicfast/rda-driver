@@ -145,6 +145,8 @@ static NTSTATUS RdaFilterPnpStartDevice(_In_ PDEVICE_OBJECT DeviceObject, _Inout
                                         _In_ PRDA_FILTER_EXTENSION Extension) {
     NTSTATUS lowerStatus;
 
+    UNREFERENCED_PARAMETER(DeviceObject);
+
     if (!NT_SUCCESS(RdaFilterPnpSendAndWait(Extension, Irp, &lowerStatus))) {
         return lowerStatus;
     }
