@@ -94,12 +94,13 @@ ALLOWLIST_ADDITIONS = {
     # exports exist since Windows 2000.
     "IoReleaseCancelSpinLock": "cancel-routine protocol (S1/S2)",
     "KeGetCurrentIrql": "IRQL guard on the filter session-liveness probe",
-    # Benchmark round-2 perf: per-IO context pooling. The LOOKASIDE_LIST_EX
-    # family is documented as available from Windows Vista.
-    "ExInitializeLookasideListEx": "per-IO xfer-context pooling (Vista+)",
-    "ExDeleteLookasideListEx": "lookaside teardown at unload (Vista+)",
-    "ExAllocateFromLookasideListEx": "per-IO xfer-context alloc (Vista+)",
-    "ExFreeToLookasideListEx": "per-IO xfer-context free (Vista+)",
+    # Benchmark round-2 perf: per-IO context pooling via a self-contained
+    # SLIST free-list. (The LookasideListEx ALLOC/FREE pair was tried and
+    # REJECTED: those two are FORCEINLINE before NTDDI_WIN10_NI and kernel
+    # EXPORTS only from Win11 22H2 - importing them breaks loading on older
+    # kernels with error 127, which the runner caught live.)
+    "InterlockedPopEntrySList": "xfer-context pool pop (Win2000-era)",
+    "InterlockedPushEntrySList": "xfer-context pool push (Win2000-era)",
 }
 
 EXPECTED_MACHINE = 0x8664

@@ -49,14 +49,23 @@
 /*
  * Benchmark round 2 finding: the per-IO heap alloc/zero of the transfer
  * context cost measurable IOPS (we ran ~10% behind the reference on 4 KiB
- * random reads). A driver-wide lookaside list keeps the per-IO cost at
- * push/pop rates while preserving full concurrency safety (two threads may
- * still overlap reads on one handle, unlike an embedded-context design).
+ * random reads). A driver-wide SLIST free-list pool keeps the per-IO cost
+ * at interlocked push/pop rates while preserving full concurrency safety.
+ *
+ * Kernel-version note (verified the hard way - StartService error 127 on a
+ * Server 2022 runner): ExAllocate/FreeFromLookasideListEx are FORCEINLINE
+ * before NTDDI_WIN10_NI but REAL ntoskrnl EXPORTS only from Windows 11
+ * 22H2; a WDK-26100 build imports them and then cannot load on anything
+ * older. A self-contained SLIST pool has zero such version coupling
+ * (InterlockedPush/PopEntrySList are Win2000-era interlocks).
  */
-static LOOKASIDE_LIST_EX g_RdaXferLookaside;
-static BOOLEAN g_RdaXferLookasideInit = FALSE;
+static SLIST_HEADER g_RdaXferFreeList;
+static volatile LONG g_RdaXferFreeDepth = 0;
+#define RDA_XFER_FREE_DEPTH_MAX 32
 
-typedef struct _RDA_XFER_CONTEXT {
+/* 16-byte alignment: the SLIST link aliases the context head and
+ * InterlockedPushEntrySList on x64 needs 16-byte-aligned entries. */
+__declspec(align(16)) typedef struct _RDA_XFER_CONTEXT {
     KEVENT Wake;             /* set by completion or cancel routine */
     volatile LONG DoneFlag;  /* set by the completion routine after Iosb copy */
     volatile LONG Cancelled; /* set by the cancel routine */
@@ -66,18 +75,15 @@ typedef struct _RDA_XFER_CONTEXT {
     PIRP ForwardIrp;      /* driver-owned; freed by the dispatcher */
 } RDA_XFER_CONTEXT, *PRDA_XFER_CONTEXT;
 
-static NTSTATUS RdaXferCtxInit(VOID) {
-    NTSTATUS status;
+static PVOID RdaXferCtxAlloc(VOID) {
+    PSLIST_ENTRY entry = InterlockedPopEntrySList(&g_RdaXferFreeList);
 
-    if (!g_RdaXferLookasideInit) {
-        status = ExInitializeLookasideListEx(&g_RdaXferLookaside, NULL, NULL, NonPagedPoolNx, 0,
-                                             sizeof(struct _RDA_XFER_CONTEXT), RDA_POOL_TAG, 0);
-        if (NT_SUCCESS(status)) {
-            g_RdaXferLookasideInit = TRUE;
-        }
-        return status;
+    if (entry != NULL) {
+        InterlockedDecrement(&g_RdaXferFreeDepth);
+        RtlZeroMemory(entry, sizeof(RDA_XFER_CONTEXT));
+        return entry;
     }
-    return STATUS_SUCCESS;
+    return RdaAllocZero(sizeof(RDA_XFER_CONTEXT));
 }
 
 /* Cancel routine for the CALLER's IRP. Runs at DISPATCH_LEVEL with the
@@ -121,20 +127,27 @@ static VOID RdaReadWriteCancelRoutine(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ 
  * with cancellation). */
 static IO_COMPLETION_ROUTINE RdaForwardCompletion;
 
-/* Free through the allocation mechanism the ctx came from (lookaside vs
- * pool fallback - mixing the two is a bugcheck class). */
+/* Return to the free-list below the depth cap, else the pool. The SLIST
+ * link aliases the FIRST field of the context - the context's first field
+ * (Wake.KEVENT.Header.Type/Size) is re-initialized by KeInitializeEvent on
+ * every reuse, so the aliasing is safe. */
 static VOID RdaXferCtxFree(_In_ PRDA_XFER_CONTEXT Context) {
-    if (g_RdaXferLookasideInit) {
-        ExFreeToLookasideListEx(&g_RdaXferLookaside, Context);
+    if (g_RdaXferFreeDepth < RDA_XFER_FREE_DEPTH_MAX) {
+        InterlockedIncrement(&g_RdaXferFreeDepth);
+        InterlockedPushEntrySList(&g_RdaXferFreeList, (PSLIST_ENTRY)Context);
     } else {
         RdaFree(Context);
     }
 }
 
 _IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaReadWriteShutdown(VOID) {
-    if (g_RdaXferLookasideInit) {
-        ExDeleteLookasideListEx(&g_RdaXferLookaside);
-        g_RdaXferLookasideInit = FALSE;
+    for (;;) {
+        PSLIST_ENTRY entry = InterlockedPopEntrySList(&g_RdaXferFreeList);
+
+        if (entry == NULL) {
+            break;
+        }
+        RdaFree(entry);
     }
 }
 
@@ -184,17 +197,9 @@ static NTSTATUS RdaForwardSynchronous(_In_ PDEVICE_OBJECT TargetDevice, _In_ UCH
         return STATUS_INVALID_PARAMETER;
     }
 
-    if (!NT_SUCCESS(RdaXferCtxInit())) {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-    ctx = (PRDA_XFER_CONTEXT)ExAllocateFromLookasideListEx(&g_RdaXferLookaside);
+    ctx = (PRDA_XFER_CONTEXT)RdaXferCtxAlloc();
     if (ctx == NULL) {
-        ctx = (PRDA_XFER_CONTEXT)RdaAllocZero(sizeof(RDA_XFER_CONTEXT)); /* fallback */
-        if (ctx == NULL) {
-            return STATUS_INSUFFICIENT_RESOURCES;
-        }
-    } else {
-        RtlZeroMemory(ctx, sizeof(RDA_XFER_CONTEXT));
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
     KeInitializeEvent(&ctx->Wake, NotificationEvent, FALSE);
     KeInitializeEvent(&ctx->CancelDone, NotificationEvent, FALSE);
