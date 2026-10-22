@@ -61,9 +61,17 @@ ALLOWLIST_ADDITIONS = {
     "ObOpenObjectByPointer": "wdmsec: object handle from pointer",
     "IoIsWdmVersionAvailable": "wdmsec: WDM level probe (exported since XP)",
     "MmGetSystemRoutineAddress": "wdmsec: routine resolution",
+    "RtlCreateSecurityDescriptor": "wdmsec: SD construction",
+    "RtlGetOwnerSecurityDescriptor": "wdmsec: SD query",
+    "RtlGetGroupSecurityDescriptor": "wdmsec: SD query",
+    "RtlGetSaclSecurityDescriptor": "wdmsec: SD query",
+    "RtlLengthSecurityDescriptor": "wdmsec: SD sizing",
+    "SeCaptureSecurityDescriptor": "wdmsec: SD capture (exported since XP)",
+    "SeExports": "wdmsec: well-known SID table (exported since Windows 2000)",
     # CRT string inlines pulled through ntifs/wdmsec chains (ntoskrnl exports)
     "_wcsnicmp": "CRT string inline via header chains (ntoskrnl export)",
     "wcschr": "CRT string inline via header chains (ntoskrnl export)",
+    "_snwprintf": "CRT formatting inline via wdmsec/header chains (ntoskrnl export)",
 }
 
 EXPECTED_MACHINE = 0x8664
