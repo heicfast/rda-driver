@@ -105,3 +105,34 @@ onboarding (disabled by design until certificate approval).
 - Wire structs for GETNEXTBLOCK/StartBackup/MODE3/4 added with
   compile-time offset freezes; unit tests extended (new codes + layouts).
 - Import gate: +14 audited Win7-safe ntoskrnl exports (session engine needs).
+
+## Session 2 (cont.) - independent RE verification + bench/fuzz infrastructure
+
+- Installed pefile + capstone; built scripts/verify/verify_reference_binaries.py
+  (56/57 green against the raw reference binaries). Two earlier decompile-based
+  interpretations corrected by raw disassembly:
+  * G4: the DR retry passes the disk number as BOTH varargs (vararg1 r9d +
+    vararg2 [rsp+0x20]) - Ghidra's 4-param helper view hid the second. Our
+    (disk, disk) formatter is byte-exact reference behavior.
+  * The kick cap compiles to cmp x,300 (source < 0x12D).
+  * Product string: 'EASEUS Todo Backup Driver (c) EaseUs Co. 2008' (ASCII,
+    46 bytes).
+- New rdabench client (src/bench): one JSON-emitting binary drives ANY
+  wire-compatible driver (ours, eprdtdrv, EUEDKEPM) - open/seq/rand/info/
+  verify/fuzz modes; verify mode emits per-range SHA-256 for cross-driver
+  byte-equality proof.
+- benchmark.yml: NuGet WDK build -> test-sign (job-local self-signed cert,
+  Root+TrustedPublisher, SecureBoot-off runners = no reboot) -> seeded
+  4 GiB GPT VHDX (NTFS+FAT32, realistic JPEG/PDF/MP4/ZIP/text/small-file
+  corpus) -> original eprdtdrv + our rda.sys under distinct service names ->
+  full matrix on both -> markdown comparison + hash-equality verdict +
+  fuzz hammer -> artifacts. First runs are iterating on CI (expected).
+- fuzz/: libFuzzer harness over the exact CREATE-path logic (kind
+  enumeration, volume fallback, first-number coherence, token transform)
+  + gcc selftest (4019 adversarial inputs, ASan+UBSan, zero findings) +
+  CI fuzz job (ubuntu, installs clang, 60s bounded round).
+- Security review formalized: docs/audit/2026-10-22-security-review.md
+  (S1..S12 with severity + the full resource-lifetime inventory table).
+- MSVC /W4 /WX residuals fixed (unused locals in StartBackup/InterceptWrite,
+  filter START param); BCryptCreateHash arity fixed; clang probe in the fuzz
+  job. Lint + MSVC unit tests green; driver build iterating in CI.
