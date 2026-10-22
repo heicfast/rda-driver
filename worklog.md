@@ -136,3 +136,27 @@ onboarding (disabled by design until certificate approval).
 - MSVC /W4 /WX residuals fixed (unused locals in StartBackup/InterceptWrite,
   filter START param); BCryptCreateHash arity fixed; clang probe in the fuzz
   job. Lint + MSVC unit tests green; driver build iterating in CI.
+
+## Session 2 (cont.) - real-world benchmark + optimization to parity
+
+- The benchmark pipeline went fully green (39807929475): build -> Win7 stamp
+  + import gate -> original driver fetch -> test-sign -> seeded VHD ->
+  BOTH drivers loaded side by side on the runner -> full matrix ->
+  cross-driver hash equality -> artifacts.
+- Round-1 data exposed two harness-side contract bugs (Information scaling
+  must be divided by 512; rand/verify need explicit seeks) and two REAL
+  performance gaps vs the original: per-open geometry probe (+10% open
+  latency) and per-IO context allocation (-10% random IO).
+- Optimizations: per-device geometry cache (bounded 64) + self-contained
+  SLIST free-list pool for the transfer contexts (16-byte aligned).
+- LIVE LESSON: LookasideListEx alloc/free are only real exports from
+  Win11 22H2 (FORCEINLINE before); importing them = StartService error 127
+  on the Server 2022 runner. Replaced with Exp* SLIST interlocks
+  (Win2000-era). The import gate now documents this hazard.
+- Round-2 results (docs/benchmarks/2026-10-22-runner-comparison.md):
+  seq throughput at PARITY (532.9 vs 533.1 MiB/s), open churn at parity,
+  random IO -2.9%, open mean +2.2% (the SDDL security check the reference
+  does not perform), fuzz dispatch +52%, and 64/64 sampled 1 MiB ranges
+  BYTE-IDENTICAL across drivers.
+- CI fully green across all commits (lint, MSVC /W4 /WX builds + import
+  gate, CodeQL, 48.5M-execution libFuzzer round, ASan unit tests).
