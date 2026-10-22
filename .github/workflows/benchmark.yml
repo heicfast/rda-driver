@@ -77,12 +77,16 @@ jobs:
           Export-PfxCertificate -Cert $cert -FilePath rda-test.pfx -Password $pwd2 | Out-Null
           Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
           Import-Certificate -FilePath rda-test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-          $signtool = Get-ChildItem "$vs\Common7\IDE\VC\Tools\MSVC\*\bin\Hostx64\x64\signtool.exe" | Select-Object -First 1 -ExpandProperty FullName
-          & $signtool sign /fd SHA256 /f rda-test.pfx /p rda-bench /tr http://timestamp.digicert.com `
-            bin\x64\Release\rda.sys
-          if ($LASTEXITCODE -ne 0) { & $signtool sign /fd SHA256 /f rda-test.pfx /p rda-bench bin\x64\Release\rda.sys }
-          & $signtool verify /pa /v bin\x64\Release\rda.sys
+          $candidates = @(
+            Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue
+          )
+          $signtool = ($candidates | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $signtool) { throw "signtool not found" }
+          "SIGNTOOL=$signtool"
+          & $signtool sign /fd SHA256 /f rda-test.pfx /p rda-bench bin\x64\Release\rda.sys
+          if ($LASTEXITCODE -ne 0) { throw "signtool sign failed" }
+          & $signtool verify /pa bin\x64\Release\rda.sys
+          if ($LASTEXITCODE -ne 0) { throw "signtool verify failed" }
           "SIGN_OK=$($LASTEXITCODE -eq 0)" | Out-File -Append $env:GITHUB_ENV -Encoding utf8
 
       - name: Create and seed benchmark disk
