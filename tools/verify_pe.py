@@ -94,6 +94,12 @@ ALLOWLIST_ADDITIONS = {
     # exports exist since Windows 2000.
     "IoReleaseCancelSpinLock": "cancel-routine protocol (S1/S2)",
     "KeGetCurrentIrql": "IRQL guard on the filter session-liveness probe",
+    # Benchmark round-2 perf: per-IO context pooling. The LOOKASIDE_LIST_EX
+    # family is documented as available from Windows Vista.
+    "ExInitializeLookasideListEx": "per-IO xfer-context pooling (Vista+)",
+    "ExDeleteLookasideListEx": "lookaside teardown at unload (Vista+)",
+    "ExAllocateFromLookasideListEx": "per-IO xfer-context alloc (Vista+)",
+    "ExFreeToLookasideListEx": "per-IO xfer-context free (Vista+)",
 }
 
 EXPECTED_MACHINE = 0x8664
