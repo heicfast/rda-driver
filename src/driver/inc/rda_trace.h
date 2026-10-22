@@ -20,9 +20,10 @@
 #ifndef _RDA_TRACE_H_
 #define _RDA_TRACE_H_
 
-#pragma once
-
-#include <wdm.h>
+/* No system includes here on purpose: this header is always included after
+ * the base headers (ntifs.h chain via rda_p.h). Including wdm.h from here
+ * would (a) fight the load-bearing include order and (b) neuter ntddk.h
+ * (wdm.h defines _NTDDK_ when included first). */
 
 /* Private component: 'r' 'd' 'a' 0x01 - first 4 hex digits are the component
  * group (user-defined < 0x8000 for third parties), next 4 the component. */

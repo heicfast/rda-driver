@@ -21,8 +21,7 @@
  * Licensed under the MIT license. See LICENSE.
  */
 
-#include "rda_p.h"
-#include <ntifs.h>
+#include "rda_p.h" /* ntifs.h chain included by rda_p.h (order matters) */
 
 /* Copy a UNICODE_STRING into a BYTE-strided kernel buffer with NUL
  * termination. Returns byte length written (including NUL) via Information. */

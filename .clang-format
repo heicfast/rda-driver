@@ -10,7 +10,7 @@ PointerAlignment: Right
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortFunctionsOnASingleLine: Inline
 AllowShortLoopsOnASingleLine: false
-SortIncludes: CaseSensitive
+SortIncludes: Never
 IncludeBlocks: Preserve
 AlignConsecutiveMacros: Consecutive
 SpaceAfterCStyleCast: false

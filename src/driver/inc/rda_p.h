@@ -22,9 +22,18 @@
 
 #include "../../shared/inc/rda_compat.h"
 #include "../../shared/inc/rda_ioctl.h"
-#include "rda_trace.h"
-#include <ntddk.h>
+/* Base headers - ORDER IS LOAD-BEARING (kernel C):
+ * ntifs.h must come first: it includes ntddk.h -> wdm.h in that exact
+ * order. Including wdm.h first (e.g. via another header) defines _NTDDK_
+ * inside wdm.h and silently neuters the later ntddk.h include, wiping out
+ * all DDK-level declarations. ntifs.h also provides ObQueryNameString,
+ * IoGetLowerDeviceObject, PsLookupProcessByProcessId and
+ * SeLocateProcessImageName used by this driver. */
+#include <ntifs.h>
 #include <wdmsec.h>
+#include <ntdddisk.h> /* IOCTL_DISK_GET_DRIVE_GEOMETRY + DISK_GEOMETRY (SDK shared) */
+
+#include "rda_trace.h"
 
 #pragma warning(push)
 /* RDA sources compile at /W4 /WX. System/WDK headers are silenced globally

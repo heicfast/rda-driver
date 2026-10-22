@@ -35,12 +35,12 @@
  * ObQueryNameString and wcsstr("\Device\Harddisk"). */
 static BOOLEAN RdaDeviceNameContainsHarddisk(_In_ PDEVICE_OBJECT Device, _Out_ BOOLEAN *Contains) {
     NTSTATUS status;
-    PBYTE buffer;
+    PUCHAR buffer;
     ULONG returned = 0;
 
     *Contains = FALSE;
 
-    buffer = (PBYTE)RdaAlloc(RDA_QUERY_NAME_BUFFER);
+    buffer = (PUCHAR)RdaAlloc(RDA_QUERY_NAME_BUFFER);
     if (buffer == NULL) {
         return FALSE;
     }
