@@ -64,6 +64,7 @@ jobs:
       - name: Build + run portable unit tests (MSVC /W4 /WX)
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
           # /wd4127: do{}while(0) in the CHECK macro trips C4127 at /W4;
           # harness-only suppression, documented.
           cl /nologo /W4 /WX /wd4127 /std:c11 /external:W0 `
