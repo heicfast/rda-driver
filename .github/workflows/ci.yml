@@ -54,9 +54,12 @@ jobs:
 
       - name: libFuzzer round (open grammar, parser, token transform)
         run: |
-          # ubuntu-latest ships clang-18; select it and run a bounded round
-          # against the portable logic the kernel executes in IRP_MJ_CREATE.
-          export CC=clang-18
+          # Probe the runner's clang (image-dependent), then run a bounded
+          # libFuzzer round over the portable logic the kernel executes in
+          # IRP_MJ_CREATE.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang > /dev/null
+          export CC=clang
           make -C fuzz fuzz
           make -C fuzz run
 

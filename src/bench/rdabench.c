@@ -327,7 +327,7 @@ static int BenchVerify(void) {
         if (!ReadFile(h, buffer, blockBytes, &read, NULL) || read != blockBytes) {
             break;
         }
-        if (BCryptCreateHash(alg, &hash, NULL, 0, 0) != 0) {
+        if (BCryptCreateHash(alg, &hash, NULL, 0, NULL, 0, 0) != 0) {
             break;
         }
         BCryptHashData(hash, buffer, read, 0);
