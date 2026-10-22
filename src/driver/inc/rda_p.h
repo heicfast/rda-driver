@@ -20,8 +20,8 @@
 #ifndef _RDA_P_H_
 #define _RDA_P_H_
 
-#include "../shared/inc/rda_compat.h"
-#include "../shared/inc/rda_ioctl.h"
+#include "../../shared/inc/rda_compat.h"
+#include "../../shared/inc/rda_ioctl.h"
 #include "rda_trace.h"
 #include <ntddk.h>
 #include <wdmsec.h>
