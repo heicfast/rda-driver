@@ -112,6 +112,20 @@ NTSTATUS RdaReadParameters(_In_ PUNICODE_STRING RegistryPath) {
         return status;
     }
 
+    /* G10: the reference drivers read IoctlBase / DeviceName / DisplayName
+     * from the SERVICE KEY ROOT (EUDCPEPM FUN_00011244, EUEDKEPM
+     * FUN_000119bc), not from a Parameters subkey. RDA reads BOTH: the
+     * service-root values first (reference parity), then Parameters\
+     * overrides (forward-compatible deployment profile). */
+    if (RdaReadDword(keyHandle, L"IoctlBase", &value)) {
+        g_RdaParameters.IoctlBase = value;
+    }
+    if (RdaReadString(keyHandle, L"DeviceName", g_RdaParameters.DeviceName,
+                      RDA_NAME_BUFFER_CHARS) &&
+        g_RdaParameters.DeviceName[0] != UNICODE_NULL) {
+        g_RdaParameters.UseDeviceName = TRUE;
+    }
+
     RtlInitUnicodeString(&parametersName, L"Parameters");
     InitializeObjectAttributes(&attributes, &parametersName,
                                OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, keyHandle, NULL);

@@ -38,13 +38,37 @@
 static BOOLEAN RdaIsSessionCode(_In_ ULONG Code, _Out_ PULONG CustomCode) {
     ULONG normalized;
 
-    /* IoctlBase defaults to 0; the reference PE deployment sets 0x10000. */
+    /* IoctlBase defaults to 0; the reference PE deployment sets 0x10000.
+     * G28: the prior range check (0x800C2AC8..0x800C2B38) missed the
+     * discovery code (0x800C2AC0) and the RRWR family (0x800C2B3E/B40/B42)
+     * - the full set the reference dispatches on. The codes are not
+     * contiguous, so match explicitly. */
     normalized = (ULONG)(Code - g_RdaParameters.IoctlBase);
-    if (normalized >= RDA_SESSION_CODE_GET_VERSION && normalized <= RDA_SESSION_CODE_CANCEL) {
+    switch (normalized) {
+    case RDA_SESSION_CODE_DISCOVERY:
+    case RDA_SESSION_CODE_GET_VERSION:
+    case RDA_SESSION_CODE_OPEN_SESSION:
+    case RDA_SESSION_CODE_SESSION_OP:
+    case RDA_SESSION_CODE_SESSION_OP2:
+    case RDA_SESSION_CODE_GETNEXTBLOCK:
+    case RDA_SESSION_CODE_SESSION_STATUS:
+    case RDA_SESSION_CODE_GET_PROGRESS:
+    case RDA_SESSION_CODE_CLOSE_SESSION:
+    case RDA_SESSION_CODE_DIRECT_READ:
+    case RDA_SESSION_CODE_DIRECT_WRITE:
+    case RDA_SESSION_CODE_MODE4:
+    case RDA_SESSION_CODE_MODE3:
+    case RDA_SESSION_CODE_SIZED_XFER:
+    case RDA_SESSION_CODE_SIZED_XFER2:
+    case RDA_SESSION_CODE_CANCEL:
+    case RDA_SESSION_CODE_RRWR_WRITE:
+    case RDA_SESSION_CODE_RRWR_VERSION:
+    case RDA_SESSION_CODE_RRWR_READ:
         *CustomCode = normalized;
         return TRUE;
+    default:
+        return FALSE;
     }
-    return FALSE;
 }
 
 /* Extended info output. */

@@ -217,11 +217,77 @@ _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
     RdaSessionDispatch(_In_ ULONG CustomCode, _In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack,
                        _In_opt_ PRDA_OPEN_CONTEXT Context);
 
+/* Destroy every session owned by the given process (control-device
+ * CLEANUP/CLOSE sweep - reference FUN_00012aa0). */
+_IRQL_requires_max_(PASSIVE_LEVEL) VOID
+    RdaSessionSweepByProcess(_In_ PEPROCESS Process);
+
+/* Destroy every session bound to the given disk (filter REMOVE path -
+ * reference FUN_0001324c). */
+_IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaSessionKillByDisk(_In_ ULONG DiskId);
+
+/* TRUE when a session on the disk is in the standby/copying state
+ * (filter TRIM swallow + write-park gating - reference FUN_00012d64). */
+_IRQL_requires_max_(PASSIVE_LEVEL) BOOLEAN RdaSessionActiveOnDisk(_In_ ULONG DiskId);
+
+/* Filter WRITE coordination (reference FUN_0001189c/FUN_0001573c):
+ * STANDBY sessions park the write (async, worker forwards it through
+ * LowerDeviceObject once the session wakes); COPYING sessions COW-save the
+ * covered range and the caller forwards synchronously; Blocked means the
+ * caller must complete the IRP with STATUS_INSUFFICIENT_RESOURCES. */
+typedef enum _RDA_WRITE_INTERCEPT {
+    RdaWriteForward = 0, /* caller forwards down the stack */
+    RdaWriteParked = 1,  /* session owns the IRP (async forward) */
+    RdaWriteBlocked = 2  /* caller completes the IRP with an error */
+} RDA_WRITE_INTERCEPT;
+
+_IRQL_requires_max_(PASSIVE_LEVEL) RDA_WRITE_INTERCEPT
+    RdaSessionInterceptWrite(_In_ ULONG DiskId, _In_ PIRP Irp,
+                             _In_ PDEVICE_OBJECT LowerDeviceObject, _In_ ULONG64 StartSec,
+                             _In_ ULONG SecCount);
+
+/* ---------------------------------------------------------------------------
+ * rda_disk.c - per-disk target cache (session/direct/RRWR resolution)
+ *
+ * The reference resolved session/direct/RRWR diskIds through the per-disk
+ * wrapper objects created at filter AddDevice, with an id-indexed sector
+ * size cache (DAT_00020350, 32 entries). RDA resolves diskIds on demand
+ * through the EUEDKEPM chain (Partition0 + walk to the disk class layer),
+ * probes geometry, and caches the referenced target so live-OS (non-filter)
+ * deployments get the same protocol. Cache is flushed at unload and when a
+ * disk is removed.
+ * ------------------------------------------------------------------------- */
+typedef struct _RDA_DISK_TARGET {
+    LIST_ENTRY Link;
+    ULONG DiskId;
+    ULONG SectorSize;         /* probed logical sector size */
+    PDEVICE_OBJECT Target;    /* referenced disk-class layer */
+    PFILE_OBJECT FileObject;  /* referenced (IoGetDeviceObjectPointer) */
+} RDA_DISK_TARGET, *PRDA_DISK_TARGET;
+
+_IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
+    RdaDiskTargetAcquire(_In_ ULONG DiskId, _Out_ PRDA_DISK_TARGET *Target);
+_IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaDiskTargetRelease(_In_ PRDA_DISK_TARGET Target);
+_IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaDiskCacheInit(VOID);
+_IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaDiskCacheShutdown(VOID);
+_IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaDiskCacheRemoveDisk(_In_ ULONG DiskId);
+
+/* Sector IO against a cached disk target (LBA -> byte offset internally). */
+_IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
+    RdaDiskReadWriteSectors(_In_ PRDA_DISK_TARGET Disk, _In_ UCHAR MajorFunction,
+                           _In_ PVOID SystemAddress, _In_ ULONG64 StartLba, _In_ ULONG SectorCount,
+                           _Out_opt_ PULONG_PTR Information);
+
 /* ---------------------------------------------------------------------------
  * rda_filter.c - PnP disk-class upper-filter role
  * ------------------------------------------------------------------------- */
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS RdaFilterStart(VOID);
 _IRQL_requires_max_(PASSIVE_LEVEL) VOID RdaFilterStop(VOID);
+
+/* Filter-stack dispatch: forwards everything, intercepts WRITEs overlapping
+ * active session ranges (park / COW), swallows TRIMs, serves the discovery +
+ * RRWR handshake (reference FUN_00012b70/00018890). */
+DRIVER_DISPATCH RdaDispatchFilter;
 
 DRIVER_DISPATCH RdaDispatchPnp;
 DRIVER_DISPATCH RdaDispatchPower;

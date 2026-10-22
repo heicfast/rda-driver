@@ -65,3 +65,43 @@ PE gate, unsigned assertion, artifacts), codeql.
 
 Next: release tag pipeline validation, VM/host test matrix, OSSign
 onboarding (disabled by design until certificate approval).
+
+## Session 2 - full decompile re-verification + contract corrections
+
+- Read ALL THREE reference driver decompiles line-by-line again (eprdtdrv,
+  EUEDKEPM, EUDCPEPM - 14k lines), decoded every dispatch slot, every
+  command gate, and the session engine internals from scratch.
+- 28 reference-contract gaps (G1..G28) + 12 self-audit defects (S1..S12)
+  documented in docs/audit/2026-10-22-decompile-reverification.md.
+  Headline corrections vs both our v0.1.0 AND the prior research artifacts:
+  * The session protocol has 18 codes, not 15 (discovery 0x800C2AC0 +
+    RRWR family 0x800C2B3E/B40/B42 were missed by earlier research).
+  * GETNEXTBLOCK is a kernel-side COPY PUMP into a StartBackup-registered
+    user buffer; the IRP only returns a 0x1E metadata record
+    (Information = 0x1E constant). Our v0.1.0 pumped data into the IRP
+    buffer - completely different semantics.
+  * GET_PROGRESS is the FINALIZE command (state 5, frees plan + MDL).
+  * Direct/sized commands are METHOD_OUT_DIRECT with LBA offsets; gates on
+    the OUTPUT length; Information = outLength always.
+  * SESSION_OP = volume flush of a protected file; SESSION_OP2 = StartBackup
+    with a 0x28-byte wire input; MODE3/MODE4 = raw paging-IO file R/W.
+  * CANCEL sets state 3 (standby) - the state machine is
+    0 created / 1 flushing / 3 standby / 4 copying / 5 done.
+  * Sessions are owned by the creating process and swept at CLEANUP/CLOSE.
+  * The filter: parks external writes on standby sessions, COW-saves ranges
+    covered by active sessions, swallows TRIMs, serves discovery + RRWR.
+  * Reference dispatch table: CLOSE carries the release, CLEANUP is the
+    noop (both EPMNtDrv + EUEDKEPM) - F9 wording corrected, F13 claim
+    withdrawn (the reference walks are balanced after all).
+- Architecture fix G11 (P0): master dispatch (reference FUN_000120c4
+  model) - control handlers can never again run on filter stacks.
+- Security fixes S1/S2 (P0): both cancel routines now release the global
+  cancel spinlock; the pump cancel routine owns completion on every path
+  (v0.1.0 deadlocked the system on first cancelled IO).
+- New rda_disk.c: per-disk target cache (session/direct/RRWR resolution
+  works in BOTH live-OS and WinPE filter roles).
+- Classifier: 1-wchar names now REJECT (reference gate is Length<2 BYTES);
+  volume-number parse failure falls back to volume 0 (reference-exact).
+- Wire structs for GETNEXTBLOCK/StartBackup/MODE3/4 added with
+  compile-time offset freezes; unit tests extended (new codes + layouts).
+- Import gate: +14 audited Win7-safe ntoskrnl exports (session engine needs).

@@ -156,6 +156,11 @@ NTSTATUS RdaDispatchCleanup(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) 
         }
     }
 
+    /* G24 (reference FUN_00012aa0 runs on the control device's CLEANUP and
+     * CLOSE): destroy every copy-session owned by the calling process so a
+     * dying client cannot leak pump workers or locked pump buffers. */
+    RdaSessionSweepByProcess(PsGetCurrentProcess());
+
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);

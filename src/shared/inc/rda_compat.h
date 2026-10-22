@@ -134,16 +134,20 @@ static __inline int RdaParseUnsigned(PCWSTR Buffer, UINT32 Chars, UINT32 *Value)
  * the control device). Buffer may not be NUL-terminated; Chars is the
  * length in wchars. Mirrors the reference CREATE handlers:
  *
- *  - Chars < 2                                     -> GLOBAL (reference EPMNtDrv
- *                                                   completes these with
- *                                                   STATUS_SUCCESS, no target)
+ *  - Chars == 0 (FileName.Length < 2 BYTES - EPMNtDrv FUN_000110b0 gate)
+ *                                                 -> GLOBAL (completes with
+ *                                                    STATUS_SUCCESS, no target)
+ *  - exactly 1 char goes to the scan loop below, finds no separator from
+ *    index 1 and ends REJECT (reference-parity: a 1-wchar name is INVALID)
  *  - first '\' found scanning from index 1; token is chars[1..idx-1];
  *    token must parse as decimal                   (else REJECT)
  *  - no '\' after index 0                          -> REJECT
  *  - remainder counted SEPARATOR-INCLUSIVE (from the '\' at sepIdx)
  *    longer than 8 wchars and equal to L"\Volume" at that position
  *                                                   -> VOLUME, number parsed
- *      from sepIdx+8 (reference gate: Chars - sepIdx > 8)
+ *      from sepIdx+8 (reference gate: Chars - sepIdx > 8); a NUMBER-PARSE
+ *      FAILURE FALLS BACK TO VOLUME 0 (reference sets local_108[0]=0 and
+ *      still opens \Device\HarddiskVolume0 - verified FUN_000110b0)
  *  - otherwise, if another path separator exists after the first number,
  *    the path is the 3-segment EPMNtDrv form      -> DISK (rest ignored,
  *      exactly like the reference: it parsed only the first number)
@@ -170,12 +174,16 @@ static __inline void RdaClassifyOpenPath(PCWSTR Buffer, UINT32 Chars, PRDA_OPEN_
     Info->DiskNumber = 0;
     Info->VolumeNumber = 0;
 
-    if (Buffer == (PCWSTR)0 || Chars < 2) {
-        /* Reference-exact (EPMNtDrv): a name shorter than 2 wchars completes
-         * CREATE with STATUS_SUCCESS and NO target context - the "global"
-         * mode behind bare \\.\SYM opens (identity IOCTLs + global-handle
-         * read/write modes). EUEDKEPM rejected short names; EPMNtDrv
-         * semantics win in the merged driver. */
+    if (Buffer == (PCWSTR)0) {
+        return; /* null buffer -> REJECT */
+    }
+    if (Chars == 0) {
+        /* Reference-exact (EPMNtDrv FUN_000110b0): the global-mode gate is
+         * FileName.Length < 2 BYTES - i.e. only the EMPTY name completes
+         * CREATE with STATUS_SUCCESS and no target context ("global" mode
+         * behind bare device opens). A 1-wchar name falls through to the
+         * separator scan below and ends REJECT, matching the reference scan
+         * gate `if (1 < totalChars)`. EUEDKEPM rejected short names too. */
         Info->Kind = RDA_OPEN_CLASS_GLOBAL;
         return;
     }
@@ -224,6 +232,14 @@ static __inline void RdaClassifyOpenPath(PCWSTR Buffer, UINT32 Chars, PRDA_OPEN_
             if (RdaParseUnsigned(Buffer + sepIdx + 8, remTotal - 8, &value) == 0) {
                 Info->Kind = RDA_OPEN_CLASS_VOLUME;
                 Info->VolumeNumber = value;
+            } else {
+                /* Reference-verified (FUN_000110b0): when the volume number
+                 * fails to parse the reference sets volume 0 and STILL
+                 * opens \Device\HarddiskVolume0 (that open then fails with
+                 * the IoGetDeviceObjectPointer status when volume 0 does not
+                 * exist). Mirror exactly. */
+                Info->Kind = RDA_OPEN_CLASS_VOLUME;
+                Info->VolumeNumber = 0;
             }
             return;
         }

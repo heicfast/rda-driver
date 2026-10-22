@@ -17,6 +17,11 @@
 #ifndef _RDA_IOCTL_H_
 #define _RDA_IOCTL_H_
 
+#include <stddef.h> /* offsetof - needed by the wire-offset asserts below */
+#ifndef C_ASSERT
+#define C_ASSERT(e) typedef char __C_ASSERT__[(e) ? 1 : -1]
+#endif
+
 /* Minimal integer types for standalone consumers (tests, docs tooling).
  * Kernel builds (ntddk.h) and windows.h consumers define these already.
  * C11-compatible duplicate typedefs are fine, but the guard keeps old MSVC
@@ -141,9 +146,38 @@ typedef struct _RDA_OPEN_TARGET_IN {
  * Copy-session protocol (EUDCPEPM contract - exact normalized codes).
  *
  * The wire code seen by the driver is  custom_code + IoctlBase  where
- * IoctlBase is the registry DWORD "IoctlBase" (default 0; the WinPE reference
- * deployment sets 0x10000). The 15 normalized commands:
+ * IoctlBase is the service-key DWORD "IoctlBase" (default 0; the WinPE
+ * reference deployment sets 0x10000). Session-reverification 2026-10-22
+ * decoded the FULL command set (18 codes) - the prior research artifacts
+ * missed the discovery + RRWR families:
+ *
+ *   code        in-gate  out-gate  semantics (verified in decompile)
+ *   ----------  -------   --------  ----------------------------------
+ *   0x800C2AC0     4+         -      discovery: returns bound diskId, Info=4
+ *   0x800C2AC8   >=0x84       -      GET_VERSION: 0x00010100 + 0x2E string, Info=0
+ *   0x800C2AD0   >=0x840      -      OPEN_SESSION (0x840 wire struct)
+ *   0x800C2AD8     >=8        -      flush protected file's volume (state 1/3)
+ *   0x800C2AE0   >=0x28       -      StartBackup (dest pump buffer + regions)
+ *   0x800C2AE8     >=8       >=0x1E   GETNEXTBLOCK (async copy pump, Info=0x1E)
+ *   0x800C2AF0     >=8        -      status: block-map status AS the NTSTATUS
+ *   0x800C2AF8   >=0x0C       -      finalize ("GET_PROGRESS"): percent @+8
+ *   0x800C2B00     >=8        -      CLOSE_SESSION
+ *   0x800C2B0A     -         >0x10   DIRECT_READ  (METHOD_OUT_DIRECT, LBA)
+ *   0x800C2B12     -         >0x10   DIRECT_WRITE (METHOD_OUT_DIRECT, LBA)
+ *   0x800C2B18   >=0x1C     >=4      MODE4 = raw paging WRITE by file handle
+ *   0x800C2B20   >=0x1C     >=4      MODE3 = raw paging READ by file handle
+ *   0x800C2B2A     -         >0x10   SIZED read (per-disk sector-size cache)
+ *   0x800C2B2E     -         >0x10   SIZED write
+ *   0x800C2B38     >=8        -      CANCEL (state := 3)
+ *   0x800C2B3E   >=0x1C     -      RRWR raw disk WRITE ("RRWR" magic)
+ *   0x800C2B40     >=4       -      RRWR version probe: 0x604 @+8, Info=0xC
+ *   0x800C2B42   >=0x1C     -      RRWR raw disk READ
+ *
+ * Direct/sized/RRWR codes are METHOD_OUT_DIRECT: header + data travel in the
+ * MDL'd output buffer. All direct-family offsets are LBA sector numbers
+ * multiplied by the disk's probed sector size at execution time.
  * ------------------------------------------------------------------------- */
+#define RDA_SESSION_CODE_DISCOVERY      0x800C2AC0UL
 #define RDA_SESSION_CODE_GET_VERSION    0x800C2AC8UL
 #define RDA_SESSION_CODE_OPEN_SESSION   0x800C2AD0UL
 #define RDA_SESSION_CODE_SESSION_OP     0x800C2AD8UL
@@ -159,15 +193,106 @@ typedef struct _RDA_OPEN_TARGET_IN {
 #define RDA_SESSION_CODE_SIZED_XFER     0x800C2B2AUL
 #define RDA_SESSION_CODE_SIZED_XFER2    0x800C2B2EUL
 #define RDA_SESSION_CODE_CANCEL         0x800C2B38UL
+#define RDA_SESSION_CODE_RRWR_WRITE     0x800C2B3EUL
+#define RDA_SESSION_CODE_RRWR_VERSION   0x800C2B40UL
+#define RDA_SESSION_CODE_RRWR_READ      0x800C2B42UL
 
-/* Session buffer gates (reference-exact sizes). */
-#define RDA_SESSION_INPUT_MIN_LEN       8UL /* codes that take a session handle */
-#define RDA_SESSION_GET_VERSION_MIN_OUT 0x84UL
-#define RDA_SESSION_STRUCT_SIZE         0x840UL /* OpenSession in/out buffer */
-#define RDA_SESSION_GETNEXTBLOCK_MIN_IN 0x1EUL
-#define RDA_SESSION_DIRECT_MIN_IN       0x11UL
-#define RDA_SESSION_MODE_MIN_IN         0x04UL
-#define RDA_SESSION_MODE_MIN_OUT        0x1CUL
+/* Session buffer gates (reference-exact, per-command in/out lengths). */
+#define RDA_SESSION_INPUT_MIN_LEN        8UL /* codes that take a session handle */
+#define RDA_SESSION_GET_VERSION_MIN_IN   0x84UL
+#define RDA_SESSION_STRUCT_SIZE          0x840UL /* OpenSession in/out buffer */
+#define RDA_SESSION_GETNEXTBLOCK_MIN_IN  0x1EUL
+#define RDA_SESSION_GETNEXTBLOCK_MIN_OUT 0x1EUL
+#define RDA_SESSION_GETNEXTBLOCK_INFO    0x1EUL /* Information after completion */
+#define RDA_SESSION_STARTBACKUP_MIN_IN   0x28UL
+#define RDA_SESSION_PROGRESS_MIN_IN      0x0CUL
+#define RDA_SESSION_FILEIO_MIN_IN        0x1CUL /* MODE3/MODE4 raw file R/W */
+#define RDA_SESSION_DIRECT_MIN_OUT       0x11UL /* direct/sized: out > 0x10 */
+#define RDA_SESSION_RRWR_MIN_IN          0x1CUL
+#define RDA_SESSION_RRWR_VERSION_OUT     0x604UL
+#define RDA_SESSION_RRWR_INFO            0x0CUL
+
+/* Session state machine (verified: state field @+0x38, spinlock-guarded).
+ * 0 created -> 1 flush-in-progress -> 3 standby/cancel -> 4 copying -> 5 done.
+ * CANCEL forces 3 from any state; StartBackup requires 3. */
+#define RDA_SESSION_STATE_CREATED  0
+#define RDA_SESSION_STATE_FLUSHING 1
+#define RDA_SESSION_STATE_STANDBY  3
+#define RDA_SESSION_STATE_COPYING  4
+#define RDA_SESSION_STATE_DONE     5
+
+/* RRWR companion magic (read raw / write raw handshake). */
+#define RDA_RRWR_MAGIC 0x52455752UL /* "RRWR" */
+
+/* GetNextBlock wire record (in == out == 0x1E, overlaid). Input:
+ *   +0x00 session handle, +0x08 cursor sector (LBA), +0x10 max sector count.
+ * Output: +0x14 source diskId, +0x18 copy progress percent (u32),
+ * +0x1C block-map build percent (byte), +0x1D block-map ok flag (byte).
+ * The copied data itself lands in the pump buffer registered at StartBackup
+ * (the reference locks a caller user-mode buffer with an MDL), NOT in the
+ * IRP buffer. Information is always 0x1E on completion. */
+#pragma pack(push, 1)
+typedef struct _RDA_GETNEXTBLOCK {
+    UINT64 Handle;     /* +0x00 in */
+    UINT64 CursorSec;  /* +0x08 in */
+    UINT32 MaxSec;     /* +0x10 in */
+    UINT32 DiskId;     /* +0x14 out */
+    UINT32 Progress;   /* +0x18 out */
+    UINT8 MapProgress; /* +0x1C out */
+    UINT8 MapOk;       /* +0x1D out */
+} RDA_GETNEXTBLOCK;
+#pragma pack(pop)
+C_ASSERT(sizeof(RDA_GETNEXTBLOCK) == 0x1EUL);
+C_ASSERT(offsetof(RDA_GETNEXTBLOCK, CursorSec) == 0x08);
+C_ASSERT(offsetof(RDA_GETNEXTBLOCK, MaxSec) == 0x10);
+C_ASSERT(offsetof(RDA_GETNEXTBLOCK, DiskId) == 0x14);
+C_ASSERT(offsetof(RDA_GETNEXTBLOCK, Progress) == 0x18);
+C_ASSERT(offsetof(RDA_GETNEXTBLOCK, MapProgress) == 0x1C);
+C_ASSERT(offsetof(RDA_GETNEXTBLOCK, MapOk) == 0x1D);
+
+/* StartBackup wire input (0x28 bytes total; the reference reads the fields
+ * at the offsets below directly from the SystemBuffer, including the
+ * 4-mod-8 UNALIGNED 64-bit user-bitmap pointer at +0x14 - hence pack(4)):
+ *   +0x00 session handle, +0x08 pump buffer USER pointer (locked via MDL),
+ *   +0x10 pump buffer byte size (must be spb*sectorSize aligned),
+ *   +0x14 optional user exclusion-bitmap pointer (bit count at +0x20),
+ *   +0x1C start sector (u32), +0x20 block count (u32), +0x24 spb (u32,
+ *   must equal the session's spb when a user bitmap is supplied). */
+#pragma pack(push, 4)
+typedef struct _RDA_STARTBACKUP_IN {
+    UINT64 Handle;     /* +0x00 */
+    PVOID PumpBuffer;  /* +0x08 */
+    UINT32 PumpBytes;  /* +0x10 */
+    PVOID UserBitmap;  /* +0x14 (unaligned-8 on the wire; pack(4) matches) */
+    UINT32 StartSec;   /* +0x1C */
+    UINT32 BlockCount; /* +0x20 */
+    UINT32 Spb;        /* +0x24 */
+} RDA_STARTBACKUP_IN;
+#pragma pack(pop)
+C_ASSERT(sizeof(RDA_STARTBACKUP_IN) == 0x28UL);
+C_ASSERT(offsetof(RDA_STARTBACKUP_IN, PumpBuffer) == 0x08);
+C_ASSERT(offsetof(RDA_STARTBACKUP_IN, PumpBytes) == 0x10);
+C_ASSERT(offsetof(RDA_STARTBACKUP_IN, UserBitmap) == 0x14);
+C_ASSERT(offsetof(RDA_STARTBACKUP_IN, StartSec) == 0x1C);
+C_ASSERT(offsetof(RDA_STARTBACKUP_IN, BlockCount) == 0x20);
+C_ASSERT(offsetof(RDA_STARTBACKUP_IN, Spb) == 0x24);
+
+/* MODE3/MODE4 raw file IO wire input (0x1C bytes):
+ *   +0x00 file handle, +0x08 user buffer pointer, +0x10 byte offset,
+ *   +0x18 byte length. MODE3 = IRP_MJ_READ, MODE4 = IRP_MJ_WRITE, issued as
+ *   paging IO against the file's volume stack with the caller's file object. */
+#pragma pack(push, 4)
+typedef struct _RDA_FILEIO_IN {
+    HANDLE FileHandle; /* +0x00 */
+    PVOID Buffer;      /* +0x08 */
+    UINT64 ByteOffset; /* +0x10 */
+    UINT32 Length;     /* +0x18 */
+} RDA_FILEIO_IN;
+#pragma pack(pop)
+C_ASSERT(sizeof(RDA_FILEIO_IN) == 0x1CUL);
+C_ASSERT(offsetof(RDA_FILEIO_IN, Buffer) == 0x08);
+C_ASSERT(offsetof(RDA_FILEIO_IN, ByteOffset) == 0x10);
+C_ASSERT(offsetof(RDA_FILEIO_IN, Length) == 0x18);
 
 /*
  * RDA_OPEN_SESSION layout (overlaid in/out buffer of RDA_SESSION_STRUCT_SIZE

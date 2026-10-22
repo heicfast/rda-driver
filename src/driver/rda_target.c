@@ -73,24 +73,34 @@ static BOOLEAN RdaDeviceNameContainsHarddisk(_In_ PDEVICE_OBJECT Device, _Out_ B
     return NT_SUCCESS(status) ? TRUE : FALSE;
 }
 
-/* TRUE when the device's driver object name equals L"Disk"
- * (RtlCompareUnicodeString case-insensitive, reference-exact). */
+/* TRUE when the device's driver service key name equals L"Disk"
+ * (RtlCompareUnicodeString case-insensitive, reference-exact).
+ *
+ * Reference-exactness note (G5, verified in ALL THREE reference CREATE
+ * walks): the comparison is against
+ *   DeviceObject->DriverObject->DriverExtension->ServiceKeyName
+ * (decompile: RtlCompareUnicodeString(*(drv+0x30)+0x18, L"Disk", TRUE)) -
+ * NOT DriverObject->DriverName. Both are "\Driver\Disk" for disk.sys, so
+ * the comparison never equals the bare string "Disk" and the recorded
+ * mode is effectively constant 1 for disk opens in the reference too.
+ * We mirror the reference comparison exactly. */
 static BOOLEAN RdaDriverIsDisk(_In_ PDEVICE_OBJECT Device) {
     UNICODE_STRING diskName;
     PDRIVER_OBJECT driver;
 
     driver = Device->DriverObject;
-    if (driver == NULL || driver->DriverName.Buffer == NULL) {
+    if (driver == NULL || driver->DriverExtension == NULL ||
+        driver->DriverExtension->ServiceKeyName.Buffer == NULL) {
         return FALSE;
     }
     RtlInitUnicodeString(&diskName, L"Disk");
-    return RtlCompareUnicodeString(&driver->DriverName, &diskName, TRUE) == 0;
+    return RtlCompareUnicodeString(&driver->DriverExtension->ServiceKeyName, &diskName, TRUE) == 0;
 }
 
 /* Opens a named device and stashes the referenced file object + device
  * object into the context. Caller ensures symmetric release via
  * RdaReleaseContext. */
-static NTSTATUS RdaOpenNamedDevice(_In_ PCWSTR Name, _In_ ULONG Number,
+static NTSTATUS RdaOpenNamedDevice(_In_ PCWSTR Name, _In_ ULONG Number, _In_opt_ ULONG Number2,
                                    _Out_ PRDA_OPEN_CONTEXT Context) {
     NTSTATUS status;
     WCHAR nameBuffer[64];
@@ -99,7 +109,11 @@ static NTSTATUS RdaOpenNamedDevice(_In_ PCWSTR Name, _In_ ULONG Number,
     name.Buffer = nameBuffer;
     name.Length = 0;
     name.MaximumLength = sizeof(nameBuffer);
-    status = RdaFormatDeviceName(&name, Name, Number);
+    if (Number2 != (ULONG)-1) {
+        status = RdaFormatDeviceName2(&name, Name, Number, Number2);
+    } else {
+        status = RdaFormatDeviceName(&name, Name, Number);
+    }
     if (!NT_SUCCESS(status)) {
         return status;
     }
@@ -118,7 +132,7 @@ NTSTATUS RdaResolveVolume(_In_ ULONG VolumeNumber, _Out_ PRDA_OPEN_CONTEXT Conte
 
     RDA_ENTER("ResolveVolume");
 
-    status = RdaOpenNamedDevice(L"\\Device\\HarddiskVolume%u", VolumeNumber, Context);
+    status = RdaOpenNamedDevice(L"\\Device\\HarddiskVolume%u", VolumeNumber, (ULONG)-1, Context);
     if (!NT_SUCCESS(status)) {
         RDA_TRACE(RDA_LEVEL_ERROR, "[GetVolumeDeviceObejct] %ws open error 0x%x,that's it!",
                   L"\\Device\\HarddiskVolume", status);
@@ -164,12 +178,15 @@ NTSTATUS RdaResolveDisk(_In_ ULONG DiskNumber, _In_ ULONG PartNumber,
 
     RDA_ENTER("ResolveDisk");
 
-    status = RdaOpenNamedDevice(L"\\Device\\Harddisk%u\\Partition0", DiskNumber, Context);
+    status =
+        RdaOpenNamedDevice(L"\\Device\\Harddisk%u\\Partition0", DiskNumber, (ULONG)-1, Context);
     if (!NT_SUCCESS(status)) {
-        /* Reference retry: \Device\Harddisk{d}\DR{d} (same number twice). */
+        /* Reference retry: \Device\Harddisk{d}\DR{d}. The reference printed
+         * the DR number from an uninitialized vararg (G4); we format the
+         * disk number deterministically. */
         RDA_TRACE(RDA_LEVEL_WARN, "[GetDiskDeviceObejct] %ws open error 0x%x,retry",
                   L"\\Device\\Harddisk\\Partition0", status);
-        status = RdaOpenNamedDevice(L"\\Device\\Harddisk%u\\DR%u", DiskNumber, Context);
+        status = RdaOpenNamedDevice(L"\\Device\\Harddisk%u\\DR%u", DiskNumber, DiskNumber, Context);
         if (!NT_SUCCESS(status)) {
             RDA_TRACE(RDA_LEVEL_ERROR, "[GetDiskDeviceObejct] %ws open error 0x%x,that's it!",
                       L"\\Device\\Harddisk\\DR", status);
@@ -234,7 +251,8 @@ NTSTATUS RdaResolveDiskEpm(_In_ ULONG DiskNumber, _Out_ PRDA_OPEN_CONTEXT Contex
 
     RDA_ENTER("ResolveDiskEpm");
 
-    status = RdaOpenNamedDevice(L"\\Device\\Harddisk%u\\Partition0", DiskNumber, Context);
+    status =
+        RdaOpenNamedDevice(L"\\Device\\Harddisk%u\\Partition0", DiskNumber, (ULONG)-1, Context);
     if (!NT_SUCCESS(status)) {
         RDA_TRACE(RDA_LEVEL_ERROR, "[EUEDKEPM] disk %u open failed 0x%08X", DiskNumber, status);
         return status;

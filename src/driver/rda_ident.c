@@ -31,8 +31,8 @@ static NTSTATUS RdaCopyUnicodeToBuffer(_In_ PUNICODE_STRING Source,
     ULONG bytes;
     ULONG i;
 
-    if (Source->Length > BufferBytes - sizeof(WCHAR)) {
-        return STATUS_BUFFER_TOO_SMALL;
+    if (BufferBytes < sizeof(WCHAR) || Source->Length > BufferBytes - sizeof(WCHAR)) {
+        return STATUS_BUFFER_TOO_SMALL; /* S8: guard the ULONG underflow */
     }
     bytes = Source->Length; /* even: WCHAR-aligned */
     for (i = 0; i < bytes / sizeof(WCHAR); i++) {

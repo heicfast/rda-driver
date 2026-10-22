@@ -72,6 +72,24 @@ ALLOWLIST_ADDITIONS = {
     "_wcsnicmp": "CRT string inline via header chains (ntoskrnl export)",
     "wcschr": "CRT string inline via header chains (ntoskrnl export)",
     "_snwprintf": "CRT formatting inline via wdmsec/header chains (ntoskrnl export)",
+    # Session 2 additions (copy-engine + filter role, all Win2000/XP-era
+    # ntoskrnl exports - verified against the EUDCPEPM import table which
+    # itself uses most of these):
+    "IoAllocateMdl": "MDL allocation (EUDCPEPM-era; ntoskrnl since 2000)",
+    "IoFreeMdl": "MDL free (ntoskrnl since 2000)",
+    "MmProbeAndLockPages": "user-buffer lock for pump buffer (EUDCPEPM-era)",
+    "MmUnmapLockedPages": "pump-buffer system-VA unmap (ntoskrnl since 2000)",
+    "MmMapLockedPagesSpecifyCache": "reference's own mapping API (EPMNtDrv)",
+    "IoBuildSynchronousFsdRequest": "sync FSD IRP build (EUDCPEPM session engine)",
+    "IoGetRelatedDeviceObject": "file->volume device (EUDCPEPM flush path)",
+    "PsGetCurrentProcess": "session owner identity (EUDCPEPM ctor)",
+    "ZwCreateFile": "protected-file open for flush (EUDCPEPM FUN_0001590c)",
+    "ZwClose": "handle close (universal)",
+    "KeReleaseSemaphore": "worker kick (EUDCPEPM FUN_00013454)",
+    "PoCallDriver": "power forward (filter role; ntoskrnl since 2000)",
+    "PoStartNextPowerIrp": "Win7 power protocol (filter role)",
+    "ProbeForRead": "user exclusion-bitmap probe (EUDCPEPM StartBackup)",
+    "IoCreateFile": "object-namespace open fallback (wdmsec/header chain)",
 }
 
 EXPECTED_MACHINE = 0x8664

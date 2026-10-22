@@ -56,14 +56,29 @@ typedef struct _RDA_XFER_CONTEXT {
     PIRP ForwardIrp;      /* driver-owned; freed by the dispatcher */
 } RDA_XFER_CONTEXT, *PRDA_XFER_CONTEXT;
 
-/* Cancel routine for the CALLER's IRP. Runs at DISPATCH_LEVEL.
- * Only touches the heap context: flags cancellation and wakes the wait. */
+/* Cancel routine for the CALLER's IRP. Runs at DISPATCH_LEVEL with the
+ * GLOBAL CANCEL SPINLOCK HELD by the IO manager (it swapped our routine out
+ * before calling us, so no ownership test is needed or possible here).
+ *
+ * S1 fix: the cancel routine MUST release the global cancel spinlock via
+ * IoReleaseCancelSpinLock(Irp->CancelIrql) before returning - the v0.1.0
+ * routine never did, which deadlocked the whole system's cancel machinery
+ * on the first cancelled IO.
+ *
+ * The routine NEVER completes the caller IRP: it only flags cancellation and
+ * wakes the dispatcher, which propagates the cancel into the storage stack
+ * and owns completion (single-completer invariant). After the spinlock
+ * release it touches only the heap context, which stays alive until the
+ * dispatcher observes CancelDone. */
 static DRIVER_CANCEL RdaReadWriteCancelRoutine;
 
 static VOID RdaReadWriteCancelRoutine(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     PRDA_XFER_CONTEXT ctx;
+    KIRQL cancelIrql = Irp->CancelIrql;
 
     UNREFERENCED_PARAMETER(DeviceObject);
+
+    IoReleaseCancelSpinLock(cancelIrql);
 
     ctx = (PRDA_XFER_CONTEXT)Irp->Tail.Overlay.DriverContext[0];
     if (ctx != NULL) {
@@ -72,8 +87,7 @@ static VOID RdaReadWriteCancelRoutine(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ 
         InterlockedExchange(&ctx->CancelStarted, 1);
         KeSetEvent(&ctx->CancelDone, IO_NO_INCREMENT, FALSE);
     }
-    /* Do NOT complete the caller IRP here; do NOT touch cancel spinlocks.
-     * The dispatcher owns completion. */
+    /* Do NOT complete the caller IRP here; the dispatcher owns completion. */
 }
 
 /* Completion for the driver-built forward IRP. Runs at DISPATCH_LEVEL.
@@ -143,6 +157,15 @@ static NTSTATUS RdaForwardSynchronous(_In_ PDEVICE_OBJECT TargetDevice, _In_ UCH
 
     /* Arm cancellation BEFORE forwarding so no in-flight window exists. */
     IoSetCancelRoutine(CallerIrp, RdaReadWriteCancelRoutine);
+
+    /* Cancel race: if the caller IRP was already cancelled while the routine
+     * was being armed and we still own it (swap-back non-NULL), the cancel
+     * path never ran - fail fast instead of forwarding a dead request. */
+    if (CallerIrp->Cancel && IoSetCancelRoutine(CallerIrp, NULL) != NULL) {
+        CallerIrp->Tail.Overlay.DriverContext[0] = NULL;
+        RdaFree(ctx);
+        return STATUS_CANCELLED;
+    }
 
     forward = IoBuildAsynchronousFsdRequest(MajorFunction, TargetDevice, SystemAddress, Length,
                                             ByteOffset, &ctx->Iosb);

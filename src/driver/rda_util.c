@@ -51,17 +51,39 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID RdaFree(_In_opt_ PVOID Memory) {
  * only, which is all the reference ever formatted. */
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
     RdaFormatDeviceName(_Out_ PUNICODE_STRING Name, _In_z_ PCWSTR Format, _In_ ULONG Number) {
+    return RdaFormatDeviceName2(Name, Format, Number, Number);
+}
+
+/* Two-number form. Used by the DR fallback: the reference formatted
+ * "\Device\Harddisk%u\DR%u" with a SINGLE vararg (the second %u consumed
+ * uninitialized stack - decompile-verified FUN_000110b0, G4). The retry
+ * could therefore essentially never resolve. RDA formats the disk number
+ * deterministically into both slots (documented divergence from garbage). */
+_IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
+    RdaFormatDeviceName2(_Out_ PUNICODE_STRING Name, _In_z_ PCWSTR Format, _In_ ULONG Number,
+                         _In_ ULONG Number2) {
     NTSTATUS status;
     UNICODE_STRING numberString;
     WCHAR numberBuffer[12];
+    UNICODE_STRING number2String;
+    WCHAR number2Buffer[12];
     UNICODE_STRING prefix;
     PCWSTR cursor;
     const WCHAR *suffix;
+    PCWSTR cursor2;
 
     RtlInitUnicodeString(&numberString, NULL);
     numberString.Buffer = numberBuffer;
     numberString.MaximumLength = sizeof(numberBuffer);
     status = RtlIntegerToUnicodeString(Number, 10, &numberString);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    RtlInitUnicodeString(&number2String, NULL);
+    number2String.Buffer = number2Buffer;
+    number2String.MaximumLength = sizeof(number2Buffer);
+    status = RtlIntegerToUnicodeString(Number2, 10, &number2String);
     if (!NT_SUCCESS(status)) {
         return status;
     }
@@ -85,10 +107,37 @@ _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS
     if (NT_SUCCESS(status)) {
         status = RtlAppendUnicodeStringToString(Name, &numberString);
     }
-    if (NT_SUCCESS(status) && *suffix != UNICODE_NULL) {
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    /* Optional second %u in the suffix. */
+    cursor2 = suffix;
+    while (*cursor2 != UNICODE_NULL && *cursor2 != L'%') {
+        cursor2++;
+    }
+    if (*cursor2 == L'%') {
+        UNICODE_STRING mid;
+        UNICODE_STRING tail;
+
+        RtlInitUnicodeString(&mid, NULL);
+        mid.Buffer = (PWCH)suffix;
+        mid.Length = (USHORT)((cursor2 - suffix) * sizeof(WCHAR));
+        mid.MaximumLength = mid.Length;
+        status = RtlAppendUnicodeStringToString(Name, &mid);
+        if (NT_SUCCESS(status)) {
+            status = RtlAppendUnicodeStringToString(Name, &number2String);
+        }
+        if (NT_SUCCESS(status)) {
+            RtlInitUnicodeString(&tail, cursor2 + 2);
+            status = RtlAppendUnicodeStringToString(Name, &tail);
+        }
+        return status;
+    }
+
+    {
         UNICODE_STRING suffixString;
         RtlInitUnicodeString(&suffixString, suffix);
-        status = RtlAppendUnicodeStringToString(Name, &suffixString);
+        return RtlAppendUnicodeStringToString(Name, &suffixString);
     }
-    return status;
 }

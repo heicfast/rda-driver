@@ -95,6 +95,7 @@
 
   <ItemGroup>
     <ClCompile Include="rda_driver.c" />
+    <ClCompile Include="rda_disk.c" />
     <ClCompile Include="rda_registry.c" />
     <ClCompile Include="rda_control.c" />
     <ClCompile Include="rda_target.c" />

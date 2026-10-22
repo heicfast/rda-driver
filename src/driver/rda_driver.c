@@ -28,15 +28,17 @@ ULONG g_RdaDebugLevel = RDA_LEVEL_ERROR;
 volatile LONG64 g_RdaGlobalHandle = 0;
 
 static DRIVER_DISPATCH RdaDispatchDefault;
+static DRIVER_DISPATCH RdaDispatchMaster;
 
 static VOID RdaDriverUnload(_In_ PDRIVER_OBJECT DriverObject) {
     UNREFERENCED_PARAMETER(DriverObject);
 
     RDA_ENTER("DriverUnload");
 
-    /* Tear down in reverse creation order: session engine, filter role,
-     * control device. */
+    /* Tear down in reverse creation order: session engine, disk cache,
+     * filter role, control device. */
     RdaSessionShutdown();
+    RdaDiskCacheShutdown();
     RdaFilterStop();
     RdaDeleteControlDevice();
 
@@ -47,13 +49,64 @@ static VOID RdaDriverUnload(_In_ PDRIVER_OBJECT DriverObject) {
 static NTSTATUS RdaDispatchDefault(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     UNREFERENCED_PARAMETER(DeviceObject);
 
-    /* Every unhandled major. The reference drivers left these slots empty
-     * which the IO manager treats as invalid-device-request; we complete
-     * explicitly for clarity and correct behavior on filter stacks. */
+    /* Control-device majors we do not own. The reference drivers left these
+     * slots empty which the IO manager treats as invalid-device-request; we
+     * complete explicitly (same observable behavior). */
     Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
     Irp->IoStatus.Information = 0;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_INVALID_DEVICE_REQUEST;
+}
+
+/* Control-device major table (reference slot map verified 2026-10-22:
+ * EPMNtDrv/EUEDKEPM register CREATE@0x00, CLOSE@0x02 (release), READ@0x03,
+ * WRITE@0x04, IOCTL@0x0E, CLEANUP@0x12 (noop in the references; we release
+ * at CLEANUP per fix F9), everything else invalid). */
+static DRIVER_DISPATCH *const g_RdaControlMajors[] = {
+    RdaDispatchCreate,        /* 0x00 IRP_MJ_CREATE */
+    RdaDispatchDefault,       /* 0x01 */
+    RdaDispatchClose,         /* 0x02 IRP_MJ_CLOSE */
+    RdaDispatchRead,          /* 0x03 IRP_MJ_READ */
+    RdaDispatchWrite,         /* 0x04 IRP_MJ_WRITE */
+    RdaDispatchDefault,       /* 0x05 */
+    RdaDispatchDefault,       /* 0x06 */
+    RdaDispatchDefault,       /* 0x07 */
+    RdaDispatchDefault,       /* 0x08 */
+    RdaDispatchDefault,       /* 0x09 */
+    RdaDispatchDefault,       /* 0x0A */
+    RdaDispatchDefault,       /* 0x0B */
+    RdaDispatchDefault,       /* 0x0C */
+    RdaDispatchDefault,       /* 0x0D */
+    RdaDispatchDeviceControl, /* 0x0E IRP_MJ_DEVICE_CONTROL */
+    RdaDispatchDefault,       /* 0x0F */
+    RdaDispatchDefault,       /* 0x10 */
+    RdaDispatchDefault,       /* 0x11 */
+    RdaDispatchCleanup,       /* 0x12 IRP_MJ_CLEANUP (release, fix F9) */
+    RdaDispatchDefault,       /* 0x13 */
+    RdaDispatchDefault,       /* 0x14 */
+    RdaDispatchDefault,       /* 0x15 */
+    RdaDispatchDefault,       /* 0x16 */
+    RdaDispatchDefault,       /* 0x17 */
+    RdaDispatchDefault,       /* 0x18 */
+    RdaDispatchDefault,       /* 0x19 */
+    RdaDispatchDefault,       /* 0x1A */
+    RdaDispatchDefault,       /* 0x1B */
+};
+
+static NTSTATUS RdaDispatchMaster(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
+    UCHAR major;
+
+    if (DeviceObject != g_RdaControlDevice) {
+        /* Filter stacks (and any device created after DriverEntry, e.g. by
+         * AddDevice) run the filter dispatch - never the control handlers. */
+        return RdaDispatchFilter(DeviceObject, Irp);
+    }
+
+    major = IoGetCurrentIrpStackLocation(Irp)->MajorFunction;
+    if (major > IRP_MJ_MAXIMUM_FUNCTION) {
+        return RdaDispatchDefault(DeviceObject, Irp);
+    }
+    return g_RdaControlMajors[major](DeviceObject, Irp);
 }
 
 NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath) {
@@ -85,30 +138,22 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING Regi
         return status;
     }
 
-    /* Dispatch table: majors we own. */
-    DriverObject->MajorFunction[IRP_MJ_CREATE] = RdaDispatchCreate;
-    DriverObject->MajorFunction[IRP_MJ_READ] = RdaDispatchRead;
-    DriverObject->MajorFunction[IRP_MJ_WRITE] = RdaDispatchWrite;
-    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = RdaDispatchDeviceControl;
-    DriverObject->MajorFunction[IRP_MJ_CLEANUP] = RdaDispatchCleanup;
-    DriverObject->MajorFunction[IRP_MJ_CLOSE] = RdaDispatchClose;
-
-    /* PnP/Power are handled when running in the filter role (installed as a
-     * disk-class upper filter); on the control device they complete
-     * invalid-request via the default dispatch. */
-    DriverObject->MajorFunction[IRP_MJ_PNP] = RdaDispatchPnp;
-    DriverObject->MajorFunction[IRP_MJ_POWER] = RdaDispatchPower;
-
+    /* G11 architecture fix (reference parity - the reference installs ONE
+     * master dispatcher on ALL 28 majors, FUN_000120c4, and routes on the
+     * device: DeviceType 0x800C -> control protocol, else -> filter path).
+     * A single control-side table shared by the whole DriverObject is WRONG
+     * for a driver that also owns filter stacks. The master guarantees
+     * control handlers only ever see the control device. */
     for (i = 0; i <= IRP_MJ_MAXIMUM_FUNCTION; i++) {
-        if (DriverObject->MajorFunction[i] == NULL) {
-            DriverObject->MajorFunction[i] = RdaDispatchDefault;
-        }
+        DriverObject->MajorFunction[i] = RdaDispatchMaster;
     }
 
     DriverObject->DriverUnload = RdaDriverUnload;
 
-    /* Copy-session engine state (session registry + worker bookkeeping). */
+    /* Copy-session engine state (session registry + worker bookkeeping) and
+     * the per-disk target cache (session/direct/RRWR resolution). */
     RdaSessionInit();
+    RdaDiskCacheInit();
 
     /* Filter role activates only when configured (WinPE deployment: service
      * registered as a disk-class UpperFilter). In the live-OS profile this is
