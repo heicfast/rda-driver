@@ -90,7 +90,6 @@ ALLOWLIST_ADDITIONS = {
     "PoStartNextPowerIrp": "Win7 power protocol (filter role)",
     "ProbeForRead": "user exclusion-bitmap probe (EUDCPEPM StartBackup)",
     "IoCreateFile": "object-namespace open fallback (wdmsec/header chain)",
-    # Session-2 security fixes:
     # Session-2 security fixes (S1/S2 cancel protocol + IRQL guard): both
     # exports exist since Windows 2000.
     "IoReleaseCancelSpinLock": "cancel-routine protocol (S1/S2)",
