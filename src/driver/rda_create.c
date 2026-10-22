@@ -40,7 +40,7 @@ VOID RdaReleaseContext(_In_opt_ PRDA_OPEN_CONTEXT Context) {
     RdaFree(Context);
 }
 
-static NTSTATUS RdaDispatchCreateInner(_In_ PIRP Irp, _In_ PIO_STACK_LOCATION Stack) {
+static NTSTATUS RdaDispatchCreateInner(_In_ PIO_STACK_LOCATION Stack) {
     NTSTATUS status;
     PFILE_OBJECT fileObject = Stack->FileObject;
     PRDA_OPEN_CONTEXT context;
@@ -127,7 +127,7 @@ NTSTATUS RdaDispatchCreate(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
     UNREFERENCED_PARAMETER(DeviceObject);
 
     stack = IoGetCurrentIrpStackLocation(Irp);
-    status = RdaDispatchCreateInner(Irp, stack);
+    status = RdaDispatchCreateInner(stack);
 
     Irp->IoStatus.Status = status;
     Irp->IoStatus.Information = 0;

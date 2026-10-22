@@ -64,7 +64,6 @@ static NTSTATUS RdaFilterPnpStartDevice(_In_ PDEVICE_OBJECT DeviceObject, _Inout
                                         _In_ PRDA_FILTER_EXTENSION extension) {
     NTSTATUS status;
     KEVENT event;
-    PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
 
     UNREFERENCED_PARAMETER(extension);
 
@@ -159,7 +158,6 @@ NTSTATUS RdaDispatchPnp(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
 }
 
 NTSTATUS RdaDispatchPower(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp) {
-    PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
     PRDA_FILTER_EXTENSION extension = (PRDA_FILTER_EXTENSION)DeviceObject->DeviceExtension;
 
     if (extension != NULL && extension->Magic == RDA_FILTER_MAGIC &&

@@ -120,7 +120,7 @@ static PRDA_SESSION RdaSessionAllocate(_Out_ PULONG64 Handle) {
             KeInitializeSpinLock(&g_RdaSessions[i].QueueLock);
             InitializeListHead(&g_RdaSessions[i].PumpQueueHead);
             KeInitializeEvent(&g_RdaSessions[i].WorkerStop, NotificationEvent, FALSE);
-            KeInitializeSemaphore(&g_RdaSessions[i].WorkerKick, 0, LONG_MAX);
+            KeInitializeSemaphore(&g_RdaSessions[i].WorkerKick, 0, 0x7FFFFFFF);
             ExInitializeFastMutex(&g_RdaSessions[i].Lock);
             g_RdaSessions[i].Active = 1;
             g_RdaSessions[i].Magic = RDA_SESSION_MAGIC;

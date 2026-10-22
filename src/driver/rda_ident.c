@@ -86,7 +86,7 @@ NTSTATUS RdaIoctlGetFileObjNameCore(_In_ HANDLE FileHandle,
                                     _In_ ULONG BufferBytes, _Out_ PULONG_PTR Information) {
     NTSTATUS status;
     PFILE_OBJECT fileObject = NULL;
-    PBYTE nameBuffer = NULL;
+    PUCHAR nameBuffer = NULL;
     PUNICODE_STRING deviceName;
     UNICODE_STRING combined;
     ULONG returned = 0;
@@ -106,7 +106,7 @@ NTSTATUS RdaIoctlGetFileObjNameCore(_In_ HANDLE FileHandle,
         return STATUS_INVALID_HANDLE;
     }
 
-    nameBuffer = (PBYTE)RdaAlloc(RDA_QUERY_NAME_BUFFER);
+    nameBuffer = (PUCHAR)RdaAlloc(RDA_QUERY_NAME_BUFFER);
     if (nameBuffer == NULL) {
         ObDereferenceObject(fileObject);
         return STATUS_INSUFFICIENT_RESOURCES;

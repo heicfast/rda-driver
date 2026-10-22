@@ -225,7 +225,6 @@ static NTSTATUS RdaDispatchDeviceControlInner(_In_ PIRP Irp) {
     PRDA_OPEN_CONTEXT context = NULL;
     ULONG code = stack->Parameters.DeviceIoControl.IoControlCode;
     ULONG customCode;
-    NTSTATUS status;
 
     if (stack->FileObject != NULL) {
         context = (PRDA_OPEN_CONTEXT)stack->FileObject->FsContext2;
