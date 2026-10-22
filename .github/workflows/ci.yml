@@ -109,6 +109,12 @@ jobs:
             -p:Configuration=${{ matrix.configuration }} `
             -p:Platform=x64
 
+      - name: Stamp Win7 loader contract (OS 6.1, NATIVE 6.01)
+        shell: pwsh
+        run: |
+          $sys = "bin\x64\${{ matrix.configuration }}\rda.sys"
+          python tools\stamp_osversion.py $sys
+
       - name: Win7 import/PE gate (verify_pe.py)
         shell: pwsh
         run: |

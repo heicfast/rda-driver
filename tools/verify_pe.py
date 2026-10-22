@@ -27,7 +27,12 @@ import os
 
 # Audited additions beyond the reference union, with reasons. Each is an
 # ntoskrnl export available on Windows XP/2003 and later (hence Win7 SP1):
+#   - direct RDA usage: identity services, cancellation, session engine.
+#   - wdmsec.lib (IoCreateDeviceSecure, fix F2) statically links its own
+#     XP-era implementation: security-descriptor Rtl*/Zw* APIs, object-type
+#     globals and CRT string inlines come in as one audited set.
 ALLOWLIST_ADDITIONS = {
+    # RDA direct usage
     "IoCreateDeviceSecure": "wdmsec device SDDL (fix F2); ntoskrnl export since XP",
     "PsLookupProcessByProcessId": "GetProcName identity service; replaces reference NtOpenProcess juggling",
     "SeLocateProcessImageName": "GetProcName identity service; documented ntifs API",
@@ -37,6 +42,28 @@ ALLOWLIST_ADDITIONS = {
     "KeInitializeSemaphore": "session worker kick semaphore",
     "RtlIntegerToUnicodeString": "bounded device-name formatting (no printf in kernel)",
     "DbgPrintEx": "leveled tracing (reference used DbgPrint)",
+    "KeInitializeSpinLock": "session queue lock init (real function on x64 targets)",
+    "ExAcquireFastMutex": "session table lock",
+    "ExReleaseFastMutex": "session table lock",
+    "PsThreadType": "ObReferenceObjectByHandle type check for PETHREAD (PsCreateSystemThread)",
+    # wdmsec.lib static-link internals (IoCreateDeviceSecure implementation)
+    "ZwCreateKey": "wdmsec: class-key SDDL lookup",
+    "ZwSetValueKey": "wdmsec: class-key SDDL publish",
+    "ZwSetSecurityObject": "wdmsec: apply DACL to device object",
+    "ZwOpenKey": "wdmsec/registry: open class key",
+    "ZwQueryValueKey": "wdmsec/registry: read class-key override",
+    "RtlGetDaclSecurityDescriptor": "wdmsec: SD manipulation",
+    "RtlSetDaclSecurityDescriptor": "wdmsec: SD manipulation",
+    "RtlAbsoluteToSelfRelativeSD": "wdmsec: SD conversion (exported since Windows 2000)",
+    "RtlAddAccessAllowedAce": "wdmsec: DACL construction",
+    "RtlLengthSid": "wdmsec: SID sizing",
+    "IoDeviceObjectType": "wdmsec: object-type constant",
+    "ObOpenObjectByPointer": "wdmsec: object handle from pointer",
+    "IoIsWdmVersionAvailable": "wdmsec: WDM level probe (exported since XP)",
+    "MmGetSystemRoutineAddress": "wdmsec: routine resolution",
+    # CRT string inlines pulled through ntifs/wdmsec chains (ntoskrnl exports)
+    "_wcsnicmp": "CRT string inline via header chains (ntoskrnl export)",
+    "wcschr": "CRT string inline via header chains (ntoskrnl export)",
 }
 
 EXPECTED_MACHINE = 0x8664

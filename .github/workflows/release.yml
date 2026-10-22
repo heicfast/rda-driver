@@ -23,6 +23,10 @@ jobs:
       - name: Build (Release, x64)
         run: msbuild .\rda.sln -m -v:minimal -nologo -p:Configuration=Release -p:Platform=x64
 
+      - name: Stamp Win7 loader contract
+        shell: pwsh
+        run: python tools\stamp_osversion.py bin\x64\Release\rda.sys
+
       - name: PE gate
         shell: pwsh
         run: python tools\verify_pe.py bin\x64\Release\rda.sys
