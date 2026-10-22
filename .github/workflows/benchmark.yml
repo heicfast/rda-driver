@@ -91,10 +91,19 @@ jobs:
 
       - name: Create and seed benchmark disk
         run: |
-          # 4 GiB dynamic VHDX, GPT, two volumes (NTFS + FAT32), realistic
+          # 4 GiB FIXED VHD, GPT, two volumes (NTFS + FAT32), realistic
           # multi-format corpus: JPEG/PDF/ZIP/DOCX/MP4/TXT + many small files.
-          $vhd = New-VHD -Path $env:VHD_PATH -SizeBytes ([int]$env:SEED_MB * 1MB) -Dynamic
-          $disk = Mount-VHD -Path $env:VHD_PATH -PassThru | Get-Disk
+          # diskpart (no Hyper-V module dependency - hosted runners vary).
+          $script = @(
+            "create vdisk file=\"$env:VHD_PATH\" type=fixed maximum=$env:SEED_MB",
+            "attach vdisk"
+          ) -join "`n"
+          $script | Out-File -Encoding ascii seed-vhd.txt
+          diskpart /s seed-vhd.txt
+          if ($LASTEXITCODE -ne 0) { throw "diskpart create/attach failed" }
+          Start-Sleep -Seconds 3
+          # The attached VHD is the newest disk: highest number.
+          $disk = Get-Disk | Sort-Object Number | Select-Object -Last 1
           "DISKNUM=$($disk.Number)" | Out-File -Append $env:GITHUB_ENV -Encoding utf8
           Initialize-Disk -Number $disk.Number -PartitionStyle GPT
           $p1 = New-Partition -DiskNumber $disk.Number -Size 3GB -AssignDriveLetter
@@ -232,7 +241,8 @@ jobs:
           sc.exe delete rdatest
           sc.exe stop eprdtdrv
           sc.exe delete eprdtdrv
-          Dismount-VHD -Path $env:VHD_PATH
+          "select vdisk file=\"$env:VHD_PATH\"`ndetach vdisk" | Out-File -Encoding ascii detach.txt
+          diskpart /s detach.txt
           Remove-Item $env:VHD_PATH -Force
           Remove-Item "C:\Windows\System32\drivers\rdatest.sys","C:\Windows\System32\drivers\eprdtdrv.sys" -Force -ErrorAction SilentlyContinue
           Get-ChildItem Cert:\LocalMachine\My\RDA-BENCH-TEST -ErrorAction SilentlyContinue | Remove-Item -ErrorAction SilentlyContinue
