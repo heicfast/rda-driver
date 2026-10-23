@@ -144,6 +144,26 @@ static void TestClassifier(void) {
     Expect(WSTR(""), RDA_OPEN_CLASS_GLOBAL, 0, 0);
     Expect(WSTR("\\"), RDA_OPEN_CLASS_REJECT, 0, 0);
 
+    /* Kernel reality regression: the IO manager leaves
+     * FileObject->FileName.Buffer NULL for the EMPTY name (the bare
+     * \\.\RDA open from user mode). The null-buffer guard used to be
+     * classified BEFORE the empty-name gate, so every bare open came
+     * back STATUS_INVALID_PARAMETER (CreateFile error 87) and the whole
+     * user-mode stack silently fell back to the direct path. */
+    {
+        RDA_OPEN_INFO ni;
+        RdaClassifyOpenPath((PCWSTR)0, 0, &ni);
+        if (ni.Kind != RDA_OPEN_CLASS_GLOBAL) {
+            printf("FAIL null-buffer empty name: kind=%u want GLOBAL\n", ni.Kind);
+            g_failures++;
+        }
+        RdaClassifyOpenPath((PCWSTR)0, 4, &ni);
+        if (ni.Kind != RDA_OPEN_CLASS_REJECT) {
+            printf("FAIL null-buffer nonzero length: kind=%u want REJECT\n", ni.Kind);
+            g_failures++;
+        }
+    }
+
     /* Volume grammar. */
     Expect(WSTR("\\123456\\Volume\\3"), RDA_OPEN_CLASS_VOLUME, 123456, 3);
     Expect(WSTR("\\999\\Volume\\0"), RDA_OPEN_CLASS_VOLUME, 999, 0);

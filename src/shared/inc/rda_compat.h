@@ -174,18 +174,27 @@ static __inline void RdaClassifyOpenPath(PCWSTR Buffer, UINT32 Chars, PRDA_OPEN_
     Info->DiskNumber = 0;
     Info->VolumeNumber = 0;
 
-    if (Buffer == (PCWSTR)0) {
-        return; /* null buffer -> REJECT */
-    }
     if (Chars == 0) {
         /* Reference-exact (EPMNtDrv FUN_000110b0): the global-mode gate is
          * FileName.Length < 2 BYTES - i.e. only the EMPTY name completes
          * CREATE with STATUS_SUCCESS and no target context ("global" mode
          * behind bare device opens). A 1-wchar name falls through to the
          * separator scan below and ends REJECT, matching the reference scan
-         * gate `if (1 < totalChars)`. EUEDKEPM rejected short names too. */
+         * gate `if (1 < totalChars)`. EUEDKEPM rejected short names too.
+         *
+         * The empty-name case must be classified BEFORE the null-buffer
+         * guard: the IO manager leaves FileObject->FileName.Buffer NULL
+         * for the empty name (CreateFile("\\\\.\\RDA")), and the reference
+         * never dereferences the buffer below length 2. Classifying
+         * (NULL, 0) as REJECT returned STATUS_INVALID_PARAMETER for every
+         * bare control-device open - CreateFile failed with error 87 and
+         * the whole user-mode stack silently fell back to the direct path
+         * (runner benchmark evidence, core_recovery session 6). */
         Info->Kind = RDA_OPEN_CLASS_GLOBAL;
         return;
+    }
+    if (Buffer == (PCWSTR)0) {
+        return; /* null buffer with a NONZERO length: broken FileObject, reject */
     }
 
     /* Find the first '\' at index >= 1. */
