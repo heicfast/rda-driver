@@ -20,10 +20,10 @@ if (-not $identity.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrat
 $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($service) {
     if ($service.Status -ne 'Stopped') {
-        sc.exe.exe stop $ServiceName | Out-Null
+        sc.exe stop $ServiceName | Out-Null
         Start-Sleep -Seconds 1
     }
-    sc.exe.exe delete $ServiceName | Out-Null
+    sc.exe delete $ServiceName | Out-Null
     Write-Host "Service '$ServiceName' deleted."
 } else {
     Write-Warning "Service '$ServiceName' not found."

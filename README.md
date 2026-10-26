@@ -50,9 +50,10 @@ src/driver/      kernel driver sources (WDM)
 src/shared/inc/  public headers shared kernel<->user<->tests
 src/client/      user-mode CLI: tests, contract verification, benchmarks
 tests/unit/      portable pure-logic tests (run on Linux CI + Windows)
-tests/integration/ driver-loaded test suites (Windows test hosts)
 tools/           PE/import verification gate + build tooling
-scripts/         install/uninstall (SCM + WinPE .reg), VM test automation
+scripts/         install/uninstall (SCM + WinPE .reg), VM test automation;
+                 run-integration.ps1 drives the driver-loaded contract suite
+                 on Windows test hosts
 signing/ossign/  OSSign-compatible signing workflows (DISABLED until onboarding)
 .github/         CI: build matrix, lint, CodeQL, release
 ```

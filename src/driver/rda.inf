@@ -9,8 +9,8 @@
 ;      UpperFilters registration below + Parameters\FilterMode=1.
 ;
 ; This INF installs profile 1 (a kernel driver service). Profile 2 is
-; applied by the WinPE builder (scripts/winpe/) or manually via
-; scripts/install-filter.ps1.
+; applied by the WinPE builder (scripts/winpe/regdrv-rda.reg) or manually
+; by writing the same UpperFilters + Parameters values.
 ;
 
 [Version]

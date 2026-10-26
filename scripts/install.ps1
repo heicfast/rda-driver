@@ -54,7 +54,7 @@ Write-Host "Installing '$sourcePath' as service '$ServiceName' -> $destPath"
 Copy-Item $sourcePath $destPath -Force
 
 # --- service + parameters ------------------------------------------------------
-sc.exe.exe create $ServiceName binPath= "$destPath" type= kernel start= demand error= normal group= "Boot File System" | Out-Null
+sc.exe create $ServiceName binPath= "$destPath" type= kernel start= demand error= normal group= "Boot File System" | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Error "CreateService failed ($LASTEXITCODE)" }
 
 $paramKey = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName\Parameters"
@@ -66,7 +66,7 @@ Set-ItemProperty -Path $paramKey -Name 'SessionsEnabled' -Value 1 -Type DWord
 
 # --- start --------------------------------------------------------------------
 if (-not $NoStart) {
-    sc.exe.exe start $ServiceName | Out-Null
+    sc.exe start $ServiceName | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "StartService failed ($LASTEXITCODE). Check code-signing policy " +
                       "(testsigning), driver signature, and the System event log."

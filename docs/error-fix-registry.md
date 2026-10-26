@@ -26,8 +26,10 @@ are fixed. Cross-references: `docs/ground-truth-contracts.md`, `docs/architectur
 
 - Session `GET_VERSION` returns the same version dword (`0x00010100`) but RDA's product
   string instead of the reference vendor string (trademark hygiene; length-compatible).
-- Session op codes `0x800C2AD8/0x800C2AE0/0x800C2B18/0x800C2B20` are state-tracking
-  success stubs: their reference internals were not fully decompiled and no in-tree
-  consumer exists (documented in `rda_session.c`).
+- Session op codes `0x800C2AD8/0x800C2AE0/0x800C2B18/0x800C2B20` are fully
+  implemented (flush-protected-file, StartBackup plan pump, MODE4 raw paging
+  write, MODE3 raw paging read — see `rda_session.c`); earlier revisions of
+  this registry called them stubs, which the post-2026-10-22 reverification
+  of the decompiles superseded.
 - Commands expecting raw session pointers still work — handles are opaque values to
   compliant clients by construction.
