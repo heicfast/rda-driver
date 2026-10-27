@@ -71,9 +71,9 @@ extern "C" {
  * ------------------------------------------------------------------------- */
 #define CTL_CODE_RDA(Func) ((RDA_DEVICE_TYPE << 16) | ((Func) << 2) | 0 /* METHOD_BUFFERED */)
 
-#define IOCTL_RDA_GET_INFO    CTL_CODE_RDA(0x910) /* 0x60002440 */
-#define IOCTL_RDA_OPEN_TARGET CTL_CODE_RDA(0x911) /* 0x60002444 */
-#define IOCTL_RDA_GET_VERSION CTL_CODE_RDA(0x912) /* 0x60002448 */
+#define IOCTL_RDA_GET_INFO    CTL_CODE_RDA(0x910) /* 0x6002440 */
+#define IOCTL_RDA_OPEN_TARGET CTL_CODE_RDA(0x911) /* 0x6002444 */
+#define IOCTL_RDA_GET_VERSION CTL_CODE_RDA(0x912) /* 0x6002448 */
 
 /* IOCTL_RDA_GET_INFO output. */
 typedef struct _RDA_DRIVER_INFO {
