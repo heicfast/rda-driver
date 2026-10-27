@@ -53,9 +53,12 @@ extern "C" {
 /* ---------------------------------------------------------------------------
  * Reference identity IOCTLs (EPMNtDrv contract - exact codes).
  *
- * CTL_CODE(0x600, 0x900, METHOD_BUFFERED, FILE_ANY_ACCESS) = 0x60002400
- * CTL_CODE(0x600, 0x901, METHOD_BUFFERED, FILE_ANY_ACCESS) = 0x60002404
- * CTL_CODE(0x600, 0x902, METHOD_BUFFERED, FILE_ANY_ACCESS) = 0x60002408
+ * RAW values, byte-exact to the reference (EPMNtDrv) wire - deliberately
+ * NOT CTL_CODE_RDA macro derivations (a CTL_CODE(0x600, 0x900...) would
+ * evaluate to 0x6002400; the reference wire is 0x60002400 and these
+ * #defines preserve it):
+ *   0x60002400 GET_PROC_NAME, 0x60002404 GET_FILE_OBJ_NAME,
+ *   0x60002408 GET_DISK_CONTEXT_MODE
  * ------------------------------------------------------------------------- */
 #define IOCTL_RDA_GET_PROC_NAME         0x60002400UL
 #define IOCTL_RDA_GET_FILE_OBJ_NAME     0x60002404UL
