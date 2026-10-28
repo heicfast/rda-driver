@@ -40,6 +40,26 @@ jobs:
           done
           exit $bad
 
+      - name: PowerShell script syntax gate (AST parse, zero errors)
+        shell: pwsh
+        run: |
+          # v0.2.4 (the v0.2.3 lesson: a broken install.ps1 broke every CI
+          # install - S-036). Parse every shipped script with the language
+          # parser; any error fails the lane before it can reach a runner
+          # that executes it.
+          $errors = $null
+          foreach ($s in @('scripts/install.ps1', 'scripts/uninstall.ps1')) {
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Join-Path $PWD $s), [ref]$null, [ref]$errors) | Out-Null
+            if ($errors -and $errors.Count -gt 0) {
+              foreach ($e in $errors) {
+                Write-Error "$s : $($e.Message) @ line $($e.Extent.StartLineNumber)"
+              }
+              exit 1
+            }
+            Write-Host "$s parses clean"
+          }
+
       - name: unit tests (portable contract layer)
         run: |
           sudo apt-get install -y -qq gcc > /dev/null

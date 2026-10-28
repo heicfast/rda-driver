@@ -77,18 +77,30 @@ artifact is published.
 
 ```powershell
 # elevated; installs rda.sys as service 'eprdtdrv' → device \Device\EPRDTDRV
+# v0.2.4: the default -Layout Versioned copies to eprdtdrv10.sys (the source
+# image's <Major><Minor> - the reference setupdrvx64 %s%d coexistence scheme:
+# an in-use image is never overwritten; a different-version install upgrades
+# the service in place: stop → sc config binPath → start, old file stays).
 .\scripts\install.ps1 -ServiceName eprdtdrv -Source .\bin\x64\Release\rda.sys
+
+# -Layout Plain keeps the classic <ServiceName>.sys; -Uninstall delegates to
+# uninstall.ps1 (one implementation, both entry points).
+.\scripts\install.ps1 -ServiceName eprdtdrv -Source .\rda.sys -Uninstall
 ```
 
-**Exit-code contract (v0.2.3)** — `install.ps1`: 0 installed (+started unless
-`-NoStart`) · 1 not elevated · 2 name exists · 3 copy failed · 4 CreateService
-SCM error · 5 Parameters write-back verification failed · 6 StartService failed
-(code-signing rejection — check `testsigning` + the System event log) · 7 not
-RUNNING after start. `uninstall.ps1`: 0 clean (or nothing existed) · 1 not
-elevated · 2 stop SCM error · 3 did not reach STOPPED in the 5 s poll · 4 delete
-SCM error · 5 still registered after delete (open handle, marked-for-deletion)
-· 6 driver image delete failed (locked). Start failure is fatal: the canonical
-dev failure (signature rejection) previously exited 0.
+**Exit-code contract (v0.2.4)** — `install.ps1`: 0 installed (+started unless
+`-NoStart`) · 1 not elevated · 2 name exists (and not a versioned upgrade) · 3
+copy failed · 4 CreateService SCM error · 5 Parameters write-back verification
+failed · 6 StartService failed (code-signing rejection — check `testsigning` +
+the System event log) · 7 not RUNNING after start · 8 in-place upgrade: the old
+service did not reach STOPPED · 9 in-place upgrade: `sc.exe config` SCM error.
+`uninstall.ps1`: 0 clean (or nothing existed) · 1 not elevated · 2 stop SCM
+error · 3 did not reach STOPPED in the 5 s poll · 4 delete SCM error · 5 still
+registered after delete (open handle, marked-for-deletion) · 6 driver image
+delete failed (locked). Start failure is fatal: the canonical dev failure
+(signature rejection) previously exited 0. The teardown deletes the file the
+service actually pointed at (the versioned name) and sweeps the versioned
+leftovers (`<ServiceName><digits>.sys`).
 
 Kernel drivers must be test-signed (`bcdedit /set testsigning on` + reboot) or properly
 signed via the pipeline in [docs/signing.md](docs/signing.md) before Windows 10/11 will

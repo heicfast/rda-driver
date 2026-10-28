@@ -9,13 +9,22 @@
 #   5 = service still registered after delete (SCM pending/marked)
 #   6 = driver file delete failed (locked image, in use)
 #
+# v0.2.4 (M-064): the versioned layout's file is <ServiceName><MajorMinor>.sys -
+#   the teardown reads the SERVICE's actual ImagePath (the versioned name) and
+#   deletes that; with the service absent it also sweeps the versioned leftovers
+#   (<ServiceName><digits>.sys). install.ps1 -Uninstall delegates here (one
+#   implementation, both entry points).
+#
 # Usage: .\uninstall.ps1 -ServiceName eprdtdrv
 #
 # Licensed under the MIT license. See LICENSE.
 
 [CmdletBinding()]
 param(
+    # v0.2.4: the same charset contract as install.ps1 (also keeps the
+    # versioned-leftover sweep's regex literal - no metacharacters in the name)
     [Parameter(Mandatory = $true)]
+    [ValidatePattern('^[A-Za-z0-9_]+$')]
     [string]$ServiceName
 )
 
@@ -32,7 +41,14 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 }
 
 $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+$imagePath = $null
 if ($service) {
+    # v0.2.4 (M-064): capture the actual image path (the versioned layout's
+    # file is <ServiceName><MajorMinor>.sys - the fixed name would miss it)
+    try {
+        $imagePath = (Get-CimInstance Win32_Service -Filter "Name='$ServiceName'" -ErrorAction Stop).PathName
+        if ($imagePath) { $imagePath = $imagePath.Trim('"') }
+    } catch { $imagePath = $null }
     if ($service.Status -ne 'Stopped') {
         sc.exe stop $ServiceName | Out-Null
         if ($LASTEXITCODE -ne 0) {
@@ -72,18 +88,32 @@ if ($service) {
 }
 
 # --- driver file ------------------------------------------------------------
-$destPath = Join-Path $env:SystemRoot "System32\drivers\$ServiceName.sys"
-if (Test-Path $destPath) {
+# v0.2.4 (M-064): delete the file the SERVICE actually pointed at (the versioned
+# <ServiceName><MajorMinor>.sys), then the classic plain name, then sweep the
+# versioned leftovers (<ServiceName><digits>.sys - the bounded pattern, never
+# unrelated names). Every failure is loud (exit 6).
+$destDir = Join-Path $env:SystemRoot 'System32\drivers'
+$targets = @()
+if ($imagePath -and (Test-Path $imagePath)) { $targets += $imagePath }
+$plain = Join-Path $destDir "$ServiceName.sys"
+if (Test-Path $plain) { $targets += $plain }
+Get-ChildItem -Path $destDir -Filter "$ServiceName`*.sys" -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match "^$ServiceName\d+\.sys$" } |
+    ForEach-Object { $targets += $_.FullName }
+$targets = $targets | Select-Object -Unique
+if (-not $targets -or $targets.Count -eq 0) {
+    Write-Host "Driver image not present (already clean)."
+    exit 0
+}
+foreach ($t in $targets) {
     # v0.2.3 (M-061): loud failure - the old script swallowed Remove-Item
     # errors and printed "Removed" unconditionally (a lie while the locked
     # image stayed on disk).
-    Remove-Item $destPath -Force -ErrorAction Stop
-    if (Test-Path $destPath) {
-        Write-Error "Driver image '$destPath' is still present after Remove-Item."
+    Remove-Item $t -Force -ErrorAction Stop
+    if (Test-Path $t) {
+        Write-Error "Driver image '$t' is still present after Remove-Item."
         exit 6
     }
-    Write-Host "Removed $destPath"
-} else {
-    Write-Host "Driver image '$destPath' not present (already clean)."
+    Write-Host "Removed $t"
 }
 exit 0

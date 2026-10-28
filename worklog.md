@@ -188,3 +188,40 @@ Stage Summary:
 - The v0.2.3 batch is content-complete on the script surface; tag after
   CI. core_recovery's composite (S-036 close-out: fail-loud flip +
   FloorVersion v0.2.3) follows once this is tagged.
+
+---
+Task ID: M064-REMAINDER (v0.2.4 — the -Uninstall verb + the -Layout Versioned coexistence; the M-064 close-out)
+Agent: main engineer (the SA-6 probe lane, rda-driver side)
+
+Work Log:
+- install.ps1: -Layout Versioned|Plain (default Versioned) — the dest is
+  <ServiceName><MajorMinor>.sys from the source image's version resource
+  (the reference setupdrvx64 %s%d coexistence scheme; no version resource =
+  an honest Plain fallback with a warning, never a guessed tag); a different
+  -version install over an existing service is the in-place upgrade (stop
+  with the M-061 poll -> sc config binPath -> the shared Parameters
+  write+verify -> the shared start leg; the old image file stays — no
+  overwrite, no reboot); the same-file/Plain cases keep the classic exit-2
+  refuse. New exit codes 8 (upgrade stop-poll failure) + 9 (sc config
+  error).
+- install.ps1: -Uninstall delegates to uninstall.ps1 by re-invoking the
+  CURRENT engine (works under powershell.exe 5.1 and pwsh 7+) — one
+  implementation, both entry points (the M-064 fix plan's own form).
+- uninstall.ps1: captures the service's actual ImagePath before the delete
+  (the versioned file name) and deletes that; sweeps the versioned
+  leftovers (<ServiceName><digits>.sys, the bounded pattern); the plain
+  name stays the fallback; every failure loud (exit 6). The ServiceName
+  charset validation added (the regex-literal safety + the install.ps1
+  contract).
+- CI: the PowerShell AST parse gate on the lint lane (the v0.2.3 lesson:
+  a broken script broke every CI install — S-036; now the parser catches it
+  before any runner executes it).
+- README: the v0.2.4 contract documented (the versioned layout, the
+  upgrade flow, the new exit codes, the delegation).
+
+Stage Summary:
+- The M-064 remainder LANDED (v0.2.4): the -Uninstall verb + the %s%d
+  versioned coexistence + the in-place upgrade. The core-side trail
+  (modules/driver-install.md + the M-064 resolution addendum + the matrix
+  row) follows in the core repo. The execution drills (the two-version
+  coexistence on a real runner) ride CI's next dispatch.
