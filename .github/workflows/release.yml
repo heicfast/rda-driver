@@ -91,5 +91,9 @@ jobs:
             production deployment - see docs/signing.md (the OSSign pipeline
             is prepared but DISABLED until certificate onboarding completes).
 
-            Win7 SP1 -> Win11 x64, single binary. Verified by the CI PE gate
-            (import allowlist + OS 6.1 header contract).
+            Win7 SP1 -> Win11 x64, single binary. BUILD compatibility
+            verified by the CI PE gate (import allowlist + OS 6.1 header
+            contract); INSTALL/LOAD validated on windows-2022 (HVCI off,
+            job-local cert) - stock Win11 HVCI requires attestation
+            (docs/signing.md); Win7 install is build-gated, not
+            install-validated.
