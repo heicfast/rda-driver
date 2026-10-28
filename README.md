@@ -80,6 +80,16 @@ artifact is published.
 .\scripts\install.ps1 -ServiceName eprdtdrv -Source .\bin\x64\Release\rda.sys
 ```
 
+**Exit-code contract (v0.2.3)** — `install.ps1`: 0 installed (+started unless
+`-NoStart`) · 1 not elevated · 2 name exists · 3 copy failed · 4 CreateService
+SCM error · 5 Parameters write-back verification failed · 6 StartService failed
+(code-signing rejection — check `testsigning` + the System event log) · 7 not
+RUNNING after start. `uninstall.ps1`: 0 clean (or nothing existed) · 1 not
+elevated · 2 stop SCM error · 3 did not reach STOPPED in the 5 s poll · 4 delete
+SCM error · 5 still registered after delete (open handle, marked-for-deletion)
+· 6 driver image delete failed (locked). Start failure is fatal: the canonical
+dev failure (signature rejection) previously exited 0.
+
 Kernel drivers must be test-signed (`bcdedit /set testsigning on` + reboot) or properly
 signed via the pipeline in [docs/signing.md](docs/signing.md) before Windows 10/11 will
 load them. See [docs/testing.md](docs/testing.md) for the full VM-hosted test plan.

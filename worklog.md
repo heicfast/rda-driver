@@ -160,3 +160,31 @@ onboarding (disabled by design until certificate approval).
   BYTE-IDENTICAL across drivers.
 - CI fully green across all commits (lint, MSVC /W4 /WX builds + import
   gate, CodeQL, 48.5M-execution libFuzzer round, ASan unit tests).
+
+---
+Task ID: FIX-4 (the v0.2.3 deployer batch — S-036 + the M-061/M-062/M-064 script halves)
+Agent: main engineer (upstream rda-driver lane)
+
+Work Log:
+- install.ps1: the elevation guard rewritten (S-036 — the [WindowsPrincipal]::
+  [WindowsIdentity] type-literal chain died as InvokeMethodOnNull on every
+  stock host; now New-Object with an explicit principal + exit 1); the copy
+  verified (exit 3); CreateService per-call error (exit 4, the og deployer's
+  "CreateService failed! Error = %d" string); the four Parameters values
+  read back + verified (exit 5, the og's write+verify contract); start
+  failure FATAL with exit 6 + the testsigning guidance (M-062's exit-0 bug)
+  + a RUNNING confirmation pass (exit 7); -NoStart prints the installed-
+  stopped state.
+- uninstall.ps1: same guard fix; sc stop $LASTEXITCODE checked (exit 2); a
+  10x500ms STOP_PENDING poll replaces the fixed 1s sleep (exit 3); delete
+  $LASTEXITCODE checked (exit 4); post-delete registration check (exit 5,
+  the SCM marked-for-deletion case); Remove-Item loud + re-Test-Path
+  verified (exit 6) — the unconditional "Removed" lie is gone (M-061).
+- README: the full exit-code contract documented at the install section.
+- No binary change (scripts + docs only; the driver core was already at
+  benchmark-proven parity — 64/64 byte-identical vs the og).
+
+Stage Summary:
+- The v0.2.3 batch is content-complete on the script surface; tag after
+  CI. core_recovery's composite (S-036 close-out: fail-loud flip +
+  FloorVersion v0.2.3) follows once this is tagged.
